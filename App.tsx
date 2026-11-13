@@ -13,6 +13,7 @@ import { offerRestAlertsOnce } from './src/session/restAlert';
 import { getSettings } from './src/storage/store';
 import CoachScreen from './src/screens/CoachScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
+import LogDetailScreen from './src/screens/LogDetailScreen';
 import PlanBuilderScreen from './src/screens/PlanBuilderScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import ReviewScreen from './src/screens/ReviewScreen';
@@ -138,6 +139,7 @@ export default function App() {
           <Stack.Screen name="Session" component={SessionScreen} />
           <Stack.Screen name="Exercise" component={ExerciseScreen} />
           <Stack.Screen name="Walk" component={WalkScreen} options={{ title: 'Walk / run' }} />
+          <Stack.Screen name="LogDetail" component={LogDetailScreen} options={{ title: 'Logged' }} />
           <Stack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'Build my plan' }} />
         </Stack.Navigator>
       </NavigationContainer>

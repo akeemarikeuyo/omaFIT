@@ -8,7 +8,7 @@ import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { Button, Pill } from '../components/ui';
 import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
-import { dailyStats, encouragement, summary } from '../data/progress';
+import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
 import {
   AnyLog,
@@ -50,12 +50,15 @@ export default function TodayScreen() {
   const today = new Date();
   const kind = dayKind(today);
   const walk = walkToday(today, week);
-  const todayStr = today.toISOString().slice(0, 10);
-  // "Done" means finished. An unfinished workout shows as Continue instead.
-  const doneToday = logs.filter(l => l.date.slice(0, 10) === todayStr && !isUnfinished(l));
-  const postureDone = doneToday.some(l => l.kind === 'session' && l.session === 'posture');
-  const strengthDone = doneToday.some(l => l.kind === 'session' && l.session !== 'posture');
-  const cardioDone = doneToday.some(l => l.kind === 'cardio');
+  // "Done" means finished today (your local day). An unfinished workout shows as Continue instead.
+  // Done cards open a read-only summary: a finished day isn't edited again.
+  const doneToday = logs.filter(l => dayKey(new Date(l.date)) === dayKey(today) && !isUnfinished(l));
+  const postureLog = doneToday.find(l => l.kind === 'session' && l.session === 'posture');
+  const strengthLog = doneToday.find((l): l is WorkoutLog => l.kind === 'session' && l.session !== 'posture');
+  const cardioLog = doneToday.find(l => l.kind === 'cardio');
+  // After finishing, show the session that was done, not the next one in the A/B rotation
+  const strengthId: SessionId = strengthLog?.session ?? next;
+  const view = (l: AnyLog) => nav.navigate('LogDetail', { logId: l.id });
 
   const stats = summary(logs);
   const last7 = dailyStats(logs, 7);
@@ -147,39 +150,48 @@ export default function TodayScreen() {
           </View>
         )}
 
-        <Pressable onPress={() => start('posture')} style={ui.card}>
+        <Pressable onPress={() => (postureLog ? view(postureLog) : start('posture'))} style={ui.card}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
             <Text style={ui.h2}>{SESSIONS.posture.title}</Text>
-            {postureDone && <Pill text="Done" color={colors.good} />}
+            {postureLog && <Pill text="Done" color={colors.good} />}
           </View>
           <Text style={ui.muted}>{SESSIONS.posture.subtitle}</Text>
-          <Text style={{ color: colors.accent, fontWeight: '700' }}>Start →</Text>
+          <CardLink done={!!postureLog} />
         </Pressable>
 
         {kind === 'strength' && (
-          <Pressable onPress={() => start(next)} style={[ui.card, { borderColor: colors.accent }]}>
+          <Pressable
+            onPress={() => (strengthLog ? view(strengthLog) : start(strengthId))}
+            style={[ui.card, !strengthLog && { borderColor: colors.accent }]}
+          >
             <View style={[ui.row, { justifyContent: 'space-between' }]}>
-              <Text style={ui.h2}>{SESSIONS[next].title}</Text>
-              {strengthDone ? <Pill text="Done" color={colors.good} /> : <Pill text="Today" />}
+              <Text style={ui.h2}>{SESSIONS[strengthId].title}</Text>
+              {strengthLog ? <Pill text="Done" color={colors.good} /> : <Pill text="Today" />}
             </View>
-            <Text style={ui.muted}>{SESSIONS[next].subtitle}</Text>
-            <Text style={ui.muted}>Do the posture routine first as your warm-up. Add a 20 min walk later.</Text>
-            <Text style={{ color: colors.accent, fontWeight: '700' }}>Start →</Text>
+            <Text style={ui.muted}>{SESSIONS[strengthId].subtitle}</Text>
+            {!strengthLog && (
+              <Text style={ui.muted}>Do the posture routine first as your warm-up. Add a 20 min walk later.</Text>
+            )}
+            <CardLink done={!!strengthLog} />
           </Pressable>
         )}
 
         {(kind === 'walk' || kind === 'longwalk' || kind === 'strength') && (
           <Pressable
-            onPress={() => nav.navigate('Walk')}
-            style={[ui.card, kind !== 'strength' && { borderColor: colors.accent }]}
+            onPress={() => (cardioLog ? view(cardioLog) : nav.navigate('Walk'))}
+            style={[ui.card, kind !== 'strength' && !cardioLog && { borderColor: colors.accent }]}
           >
             <View style={[ui.row, { justifyContent: 'space-between' }]}>
               <Text style={ui.h2}>{walk.title}</Text>
-              {cardioDone ? <Pill text="Done" color={colors.good} /> : kind !== 'strength' && <Pill text="Today" />}
+              {cardioLog ? <Pill text="Done" color={colors.good} /> : kind !== 'strength' && <Pill text="Today" />}
             </View>
-            <Text style={ui.muted}>{walk.target}</Text>
-            <Text style={ui.small}>Weeks {walk.weeks} of the plan. Talking pace. Running shoes, not slides.</Text>
-            <Text style={{ color: colors.accent, fontWeight: '700' }}>Start →</Text>
+            <Text style={ui.muted}>
+              {cardioLog?.kind === 'cardio' ? `You did: ${cardioLog.type} · ${cardioLog.minutes} min` : walk.target}
+            </Text>
+            {!cardioLog && (
+              <Text style={ui.small}>Weeks {walk.weeks} of the plan. Talking pace. Running shoes, not slides.</Text>
+            )}
+            <CardLink done={!!cardioLog} />
           </Pressable>
         )}
 
@@ -203,12 +215,17 @@ export default function TodayScreen() {
         <Text style={[ui.h2, { marginTop: space.md }]}>Recent</Text>
         {logs.length === 0 && <Text style={ui.muted}>Nothing logged yet.</Text>}
         {logs.slice(0, 15).map(l => (
-          <Pressable key={l.id} onLongPress={() => confirmDelete(l)} style={[ui.card, ui.row, { justifyContent: 'space-between' }]}>
+          <Pressable
+            key={l.id}
+            onPress={() => view(l)}
+            onLongPress={() => confirmDelete(l)}
+            style={[ui.card, ui.row, { justifyContent: 'space-between' }]}
+          >
             <View style={{ flex: 1 }}>
               <Text style={ui.body}>
                 {l.kind === 'cardio' ? `${l.type} · ${l.minutes} min` : SESSIONS[l.session].title}
               </Text>
-              <Text style={ui.small}>{new Date(l.date).toDateString()} · long-press to delete</Text>
+              <Text style={ui.small}>{new Date(l.date).toDateString()} · tap to view, long-press to delete</Text>
             </View>
             {isUnfinished(l) && <Text style={{ color: colors.muted, fontWeight: '700' }}>unfinished</Text>}
           </Pressable>
@@ -218,3 +235,8 @@ export default function TodayScreen() {
   );
 }
 
+
+/** "Start →" for something to do today; "View →" once it's done (opens a read-only summary). */
+function CardLink({ done }: { done: boolean }) {
+  return <Text style={{ color: done ? colors.muted : colors.accent, fontWeight: '700' }}>{done ? 'View →' : 'Start →'}</Text>;
+}
