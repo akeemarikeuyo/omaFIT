@@ -1,10 +1,23 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useKeepAwake } from 'expo-keep-awake';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  AppState,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  Vibration,
+  View,
+} from 'react-native';
 import { Button, ScalePicker, painColor } from '../components/ui';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { RED_FLAGS, Session } from '../data/plan';
 import { RootStackParamList } from '../navigation';
+import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert } from '../session/restAlert';
 import { addLog, getSettings, lastPerformance, restSecondsFor, SetLog } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
@@ -22,7 +35,12 @@ const firstNumber = (reps: string) => {
   return m ? m[m.length - 1] : '';
 };
 
+/** Vibration when rest ends in the app and the notification sound isn't available. */
+const REST_OVER_VIBRATION = [0, 400, 200, 400];
+
 export default function SessionScreen({ route, navigation }: Props) {
+  // A workout shouldn't be interrupted by the screen locking. Normal locking returns when the session closes.
+  useKeepAwake();
   const { sessionId } = route.params;
   const [session, setSession] = useState<Session | null>(null);
   const [exercises, setExercises] = useState<EffectiveExercise[]>([]);
@@ -31,9 +49,16 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [pain, setPain] = useState(0);
   const [effort, setEffort] = useState(3);
   const [notes, setNotes] = useState('');
-  const [rest, setRest] = useState(0);
   const [restSeconds, setRestSeconds] = useState(60);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Rest is stored as the time it ends, so it stays right while the app is in the background
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [alertsOff, setAlertsOff] = useState(false);
+  const alertsReady = useRef<Promise<boolean> | null>(null);
+  const alertId = useRef<string | null>(null);
+  // Bumped whenever rest starts or stops, so a late-arriving schedule for an old rest gets cancelled
+  const restGen = useRef(0);
+  const rest = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
 
   useEffect(() => {
     (async () => {
@@ -62,24 +87,76 @@ export default function SessionScreen({ route, navigation }: Props) {
       setSets(initial);
       setLastText(last);
     })();
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
   }, [sessionId, navigation]);
 
-  const startRest = (seconds: number) => {
-    if (timer.current) clearInterval(timer.current);
-    setRest(seconds);
-    timer.current = setInterval(() => {
-      setRest(r => {
-        if (r <= 1) {
-          if (timer.current) clearInterval(timer.current);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
+  const cancelAlert = useCallback(() => {
+    const id = alertId.current;
+    alertId.current = null;
+    if (id) void cancelRestAlert(id);
+  }, []);
+
+  /** Asks the phone to sound the alert when rest ends, so it's heard even in another app. */
+  const scheduleAlert = async (endsAt: number, gen: number) => {
+    alertsReady.current ??= prepareRestAlerts();
+    const ok = await alertsReady.current;
+    setAlertsOff(!ok);
+    if (!ok || gen !== restGen.current) return;
+    const seconds = (endsAt - Date.now()) / 1000;
+    if (seconds < 1) return;
+    const id = await scheduleRestAlert(seconds);
+    if (!id) return;
+    if (gen !== restGen.current) void cancelRestAlert(id);
+    else alertId.current = id;
   };
+
+  const startRest = (seconds: number) => {
+    cancelAlert();
+    const gen = ++restGen.current;
+    const endsAt = Date.now() + seconds * 1000;
+    setNow(Date.now());
+    setRestEndsAt(endsAt);
+    void scheduleAlert(endsAt, gen);
+  };
+
+  const skipRest = () => {
+    restGen.current++;
+    cancelAlert();
+    setRestEndsAt(null);
+  };
+
+  // Tick while resting. Uses the end time, so coming back from another app shows the right number at once.
+  useEffect(() => {
+    if (!restEndsAt) return;
+    const tick = () => {
+      const t = Date.now();
+      setNow(t);
+      if (t < restEndsAt) return;
+      // Rest is over. The scheduled notification plays the sound; without it, vibrate if the user is here now.
+      if (!alertId.current && t - restEndsAt < 1500) Vibration.vibrate(REST_OVER_VIBRATION);
+      alertId.current = null;
+      setRestEndsAt(null);
+    };
+    tick();
+    const t = setInterval(tick, 250);
+    return () => clearInterval(t);
+  }, [restEndsAt]);
+
+  // Back in the app: tidy away any "Rest over" alert left in the notification shade
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') void clearShownRestAlerts();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Leaving the session: no alert for a rest that no longer matters
+  useEffect(
+    () => () => {
+      restGen.current++;
+      cancelAlert();
+    },
+    [cancelAlert],
+  );
 
   const update = (exId: string, i: number, patch: Partial<SetState>) => {
     setSets(prev => ({ ...prev, [exId]: prev[exId].map((s, j) => (j === i ? { ...s, ...patch } : s)) }));
@@ -131,10 +208,17 @@ export default function SessionScreen({ route, navigation }: Props) {
     <KeyboardAvoidingView style={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {rest > 0 && (
         <Pressable
-          onPress={() => setRest(0)}
+          onPress={skipRest}
+          accessibilityRole="button"
+          accessibilityLabel={`Rest, ${rest} seconds left. Tap to skip.`}
           style={{ backgroundColor: colors.purple, padding: space.md, alignItems: 'center' }}
         >
           <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>Rest {rest}s · tap to skip</Text>
+          {alertsOff && (
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }}>
+              No sound in other apps. Turn on notifications for omaFIT in phone settings.
+            </Text>
+          )}
         </Pressable>
       )}
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">

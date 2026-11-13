@@ -45,6 +45,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs, overrides, reviews, chat, demo picks |
 | `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (omaFIT wordmark + dumbbell), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test) |
 | `src/screens/` | Today, Progress, Session, Exercise, Review, Coach, Settings, PlanBuilder |
+| `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |
 | `scripts/make-icons.js` | Dependency-free PNG icon generator. The dumbbell shape matches `Brand.tsx`, so change both together. |
 
@@ -109,8 +110,9 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
   obfuscated code, web views, or over-the-air update services.
 - **Device access:** camera and photos only through `expo-image-picker` / `expo-image-manipulator` in
   `PlanBuilderScreen`. `Linking.openURL` only in `ExerciseScreen` (YouTube demos) and `AISettings` (fixed API-key
-  page URLs). No location, contacts, clipboard,
-  sensors, device IDs or notifications without the maintainer's approval. New permissions in `app.json` need it too.
+  page URLs). Notifications only through `expo-notifications` in `src/session/restAlert.ts`, for the local "rest over"
+  alert (no push notifications). No location, contacts, clipboard, sensors, device IDs or other notifications without
+  the maintainer's approval. New permissions in `app.json` need it too.
 - **No tracking:** no analytics, crash reporters, ads or third-party SDKs that collect data.
 - **Dependencies:** add only with `npx expo install`, only when really needed, from well-known maintainers. Explain
   each new package in the PR. Never hand-edit `package-lock.json`. No `postinstall`/`prepare` scripts.
