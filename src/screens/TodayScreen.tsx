@@ -203,7 +203,7 @@ export default function TodayScreen() {
         )}
 
         <View style={ui.card}>
-          <Text style={ui.h3}>Do a different session</Text>
+          <Text style={ui.h3}>Start a new session</Text>
           <View style={[ui.row, { flexWrap: 'wrap' }]}>
             {(['A', 'B'] as const).map(id => (
               <Button key={id} title={SESSIONS[id].title} kind="secondary" onPress={() => start(id)} />

@@ -151,5 +151,5 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 ## Testing
 No automated tests yet. After a change, run `npm run check`, then check it on a phone in Expo Go.
-Weekday logic: Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Use "Do a different
+Weekday logic: Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Use "Start a new
 session" on Today to test strength screens on other days.
