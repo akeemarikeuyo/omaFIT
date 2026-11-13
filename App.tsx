@@ -9,6 +9,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchScreen } from './src/components/LaunchScreen';
 import { RootStackParamList, TabParamList } from './src/navigation';
+import { offerRestAlertsOnce } from './src/session/restAlert';
 import { getSettings } from './src/storage/store';
 import CoachScreen from './src/screens/CoachScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
@@ -112,6 +113,11 @@ export default function App() {
       alive = false;
     };
   }, []);
+
+  // Once the launch screen is gone, ask (only ever once) whether to turn on the rest-over alert
+  useEffect(() => {
+    if (!showLaunch) void offerRestAlertsOnce();
+  }, [showLaunch]);
 
   const onLaunchLayout = useCallback(() => SplashScreen.hide(), []);
   const onLaunchHidden = useCallback(() => setShowLaunch(false), []);

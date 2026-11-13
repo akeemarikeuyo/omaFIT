@@ -69,6 +69,8 @@ export interface Settings {
   bodyweightKg?: number;
   /** Rest between sets on strength days. Missing = the plan's default. */
   restSeconds?: number;
+  /** The one-time "turn on notifications?" question has been shown (see src/session/restAlert.ts). */
+  notificationsAsked?: boolean;
 }
 const SETTINGS = 'settings_v1';
 

@@ -39,7 +39,7 @@ const firstNumber = (reps: string) => {
 };
 
 /** Vibration when rest ends in the app and the notification sound isn't available. */
-const REST_OVER_VIBRATION = [0, 400, 200, 400];
+const REST_OVER_VIBRATION = [0, 500];
 
 /** Wait this long after typing before saving, so every keystroke isn't a write. Ticks save at the same pace. */
 const SAVE_DELAY_MS = 400;
@@ -81,7 +81,8 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [alertsOff, setAlertsOff] = useState(false);
   const alertsReady = useRef<Promise<boolean> | null>(null);
-  const alertId = useRef<string | null>(null);
+  // Whether the phone will sound the alert for the current rest (if not, the app vibrates when rest ends)
+  const alertScheduled = useRef(false);
   // Bumped whenever rest starts or stops, so a late-arriving schedule for an old rest gets cancelled
   const restGen = useRef(0);
   const rest = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
@@ -197,10 +198,10 @@ export default function SessionScreen({ route, navigation }: Props) {
     };
   }, [loaded, saveProgress]);
 
+  // There is only ever one rest alert, so cancelling always targets it. Schedule and cancel run in call order.
   const cancelAlert = useCallback(() => {
-    const id = alertId.current;
-    alertId.current = null;
-    if (id) void cancelRestAlert(id);
+    alertScheduled.current = false;
+    void cancelRestAlert();
   }, []);
 
   /** Asks the phone to sound the alert when rest ends, so it's heard even in another app. */
@@ -208,13 +209,13 @@ export default function SessionScreen({ route, navigation }: Props) {
     alertsReady.current ??= prepareRestAlerts();
     const ok = await alertsReady.current;
     setAlertsOff(!ok);
+    // A newer rest, a skip or leaving the session came first: don't schedule this one
     if (!ok || gen !== restGen.current) return;
     const seconds = (endsAt - Date.now()) / 1000;
     if (seconds < 1) return;
-    const id = await scheduleRestAlert(seconds);
-    if (!id) return;
-    if (gen !== restGen.current) void cancelRestAlert(id);
-    else alertId.current = id;
+    alertScheduled.current = true;
+    const scheduled = await scheduleRestAlert(seconds);
+    if (!scheduled && gen === restGen.current) alertScheduled.current = false;
   };
 
   const startRest = (seconds: number) => {
@@ -240,8 +241,8 @@ export default function SessionScreen({ route, navigation }: Props) {
       setNow(t);
       if (t < restEndsAt) return;
       // Rest is over. The scheduled notification plays the sound; without it, vibrate if the user is here now.
-      if (!alertId.current && t - restEndsAt < 1500) Vibration.vibrate(REST_OVER_VIBRATION);
-      alertId.current = null;
+      if (!alertScheduled.current && t - restEndsAt < 1500) Vibration.vibrate(REST_OVER_VIBRATION);
+      alertScheduled.current = false;
       setRestEndsAt(null);
     };
     tick();
