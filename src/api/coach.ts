@@ -107,7 +107,8 @@ export function logsAsText(logs: AnyLog[]): string {
       const exLines = [...byEx.entries()].map(([id, sets]) => `   [${id}] ${exerciseLabel(id)}: ${sets.join(', ')}`);
       const title = l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`;
       return (
-        `${day} ${title} | effort ${l.effort}/5 | back pain ${l.backPain}/10` +
+        `${day} ${title} | ` +
+        (l.finished === false ? 'unfinished, effort and back pain not rated' : `effort ${l.effort}/5 | back pain ${l.backPain}/10`) +
         `${l.notes ? ` | "${l.notes}"` : ''}\n${exLines.join('\n')}`
       );
     })

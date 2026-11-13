@@ -8,7 +8,17 @@ import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { RED_FLAGS, Session } from '../data/plan';
 import { RootStackParamList } from '../navigation';
 import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert } from '../session/restAlert';
-import { addLog, getSettings, lastPerformance, restSecondsFor, SetLog } from '../storage/store';
+import {
+  deleteLog,
+  getSettings,
+  lastPerformance,
+  newLogId,
+  restSecondsFor,
+  saveWorkout,
+  SetLog,
+  unfinishedToday,
+  WorkoutLog,
+} from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Session'>;
@@ -27,6 +37,27 @@ const firstNumber = (reps: string) => {
 
 /** Vibration when rest ends in the app and the notification sound isn't available. */
 const REST_OVER_VIBRATION = [0, 400, 200, 400];
+
+/** Wait this long after typing before saving, so every keystroke isn't a write. Ticks save at the same pace. */
+const SAVE_DELAY_MS = 400;
+
+const numberOrUndefined = (s: string) => {
+  const n = Number(s);
+  return s && !Number.isNaN(n) ? n : undefined;
+};
+
+/** The sets as they'll be saved, including untouched ones, so a resumed session looks exactly as it was left. */
+function toSetLogs(exercises: EffectiveExercise[], sets: Record<string, SetState[]>): SetLog[] {
+  return exercises.flatMap(ex =>
+    (sets[ex.id] ?? []).map((s, i) => ({
+      exerciseId: ex.id,
+      setIndex: i,
+      done: s.done,
+      reps: numberOrUndefined(s.reps),
+      weightKg: numberOrUndefined(s.weight),
+    })),
+  );
+}
 
 export default function SessionScreen({ route, navigation }: Props) {
   // A workout shouldn't be interrupted by the screen locking. Normal locking returns when the session closes.
@@ -50,9 +81,19 @@ export default function SessionScreen({ route, navigation }: Props) {
   const restGen = useRef(0);
   const rest = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
 
+  // The workout is saved as it goes. Its id and start time, once the first set is ticked (or when resuming).
+  const logId = useRef<string | null>(null);
+  const startedAt = useRef<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [resumed, setResumed] = useState(false);
+  const finishing = useRef(false);
+  // Saves run one after another, so an older save can never overwrite a newer one
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+
   useEffect(() => {
     (async () => {
       const { session: s, exercises: exs } = await effectiveSession(sessionId);
+      const open = await unfinishedToday(sessionId);
       setSession(s);
       setExercises(exs);
       setRestSeconds(restSecondsFor(s, await getSettings()));
@@ -60,24 +101,94 @@ export default function SessionScreen({ route, navigation }: Props) {
       const initial: Record<string, SetState[]> = {};
       const last: Record<string, string> = {};
       for (const ex of exs) {
-        const prev = await lastPerformance(ex.id);
+        const prev = await lastPerformance(ex.id, open?.id);
         const prevWeight = prev?.find(p => p.weightKg != null)?.weightKg;
         const weight = ex.targetWeightKg ?? prevWeight;
-        initial[ex.id] = Array.from({ length: ex.sets }, () => ({
-          reps: isTimed(ex.reps) ? '' : firstNumber(ex.reps),
-          weight: ex.loaded && weight != null ? String(weight) : '',
-          done: false,
-        }));
+        initial[ex.id] = Array.from({ length: ex.sets }, (_, i) => {
+          const saved = open?.sets.find(x => x.exerciseId === ex.id && x.setIndex === i);
+          if (saved) {
+            return { reps: saved.reps != null ? String(saved.reps) : '', weight: saved.weightKg != null ? String(saved.weightKg) : '', done: saved.done };
+          }
+          return {
+            reps: isTimed(ex.reps) ? '' : firstNumber(ex.reps),
+            weight: ex.loaded && weight != null ? String(weight) : '',
+            done: false,
+          };
+        });
         if (prev) {
           last[ex.id] = prev
             .map(p => [p.weightKg != null ? `${p.weightKg}kg` : null, p.reps != null ? `${p.reps}` : null].filter(Boolean).join(' x ') || '✓')
             .join(', ');
         }
       }
+      if (open) {
+        logId.current = open.id;
+        startedAt.current = open.date;
+        setPain(open.backPain);
+        setEffort(open.effort);
+        setNotes(open.notes);
+        setResumed(true);
+      }
       setSets(initial);
       setLastText(last);
+      setLoaded(true);
     })();
   }, [sessionId, navigation]);
+
+  /** Saves the workout so far as unfinished. Nothing is saved until a set is ticked; untick them all and it's removed. */
+  const saveProgress = useCallback(
+    (snapshot: { sets: Record<string, SetState[]>; pain: number; effort: number; notes: string }) => {
+      if (finishing.current) return;
+      const setLogs = toSetLogs(exercises, snapshot.sets);
+      const anyDone = setLogs.some(s => s.done);
+      saveQueue.current = saveQueue.current
+        .then(async () => {
+          if (!anyDone) {
+            if (logId.current) await deleteLog(logId.current);
+            logId.current = null;
+            startedAt.current = null;
+            return;
+          }
+          logId.current ??= newLogId();
+          startedAt.current ??= new Date().toISOString();
+          const log: WorkoutLog = {
+            id: logId.current,
+            kind: 'session',
+            date: startedAt.current,
+            session: sessionId,
+            sets: setLogs,
+            backPain: snapshot.pain,
+            effort: snapshot.effort,
+            notes: snapshot.notes,
+            finished: false,
+          };
+          await saveWorkout(log);
+        })
+        .catch(() => console.warn('Could not save workout progress'));
+    },
+    [exercises, sessionId],
+  );
+
+  // Save shortly after any change. The latest state is also saved when the app goes to the background or the
+  // session closes, so nothing ticked is lost.
+  const latest = useRef({ sets, pain, effort, notes });
+  useEffect(() => {
+    latest.current = { sets, pain, effort, notes };
+    if (!loaded) return;
+    const t = setTimeout(() => saveProgress(latest.current), SAVE_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [loaded, sets, pain, effort, notes, saveProgress]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const sub = AppState.addEventListener('change', state => {
+      if (state !== 'active') saveProgress(latest.current);
+    });
+    return () => {
+      sub.remove();
+      saveProgress(latest.current);
+    };
+  }, [loaded, saveProgress]);
 
   const cancelAlert = useCallback(() => {
     const id = alertId.current;
@@ -163,28 +274,19 @@ export default function SessionScreen({ route, navigation }: Props) {
 
   const finish = async () => {
     if (doneSets === 0) return Alert.alert('Tick off at least one set first.');
-    const setLogs: SetLog[] = [];
-    for (const ex of exercises) {
-      (sets[ex.id] ?? []).forEach((s, i) => {
-        const reps = Number(s.reps);
-        const weight = Number(s.weight);
-        setLogs.push({
-          exerciseId: ex.id,
-          setIndex: i,
-          done: s.done,
-          reps: s.reps && !Number.isNaN(reps) ? reps : undefined,
-          weightKg: s.weight && !Number.isNaN(weight) ? weight : undefined,
-        });
-      });
-    }
-    await addLog({
+    finishing.current = true;
+    // Let any save in progress finish first, then save the final version over it
+    await saveQueue.current;
+    await saveWorkout({
+      id: logId.current ?? newLogId(),
       kind: 'session',
-      date: new Date().toISOString(),
+      date: startedAt.current ?? new Date().toISOString(),
       session: sessionId,
-      sets: setLogs,
+      sets: toSetLogs(exercises, sets),
       backPain: pain,
       effort,
       notes,
+      finished: true,
     });
     if (pain >= 7) {
       Alert.alert('Saved. Take it easy.', `That is a high back pain score. ${RED_FLAGS}`);
@@ -212,6 +314,11 @@ export default function SessionScreen({ route, navigation }: Props) {
         </Pressable>
       )}
       <KeyboardAwareScrollView contentContainerStyle={ui.content}>
+        {resumed && (
+          <Text style={[ui.small, { color: colors.accent }]}>
+            Continuing where you left off. Your sets save as you tick them.
+          </Text>
+        )}
         <Text style={ui.muted}>{session.subtitle}</Text>
         <Text style={ui.small}>
           {doneSets}/{totalSets} sets done · {restSeconds} s rest
@@ -281,6 +388,9 @@ export default function SessionScreen({ route, navigation }: Props) {
 
         <View style={[ui.card, { gap: space.lg }]}>
           <Text style={ui.h2}>Finish</Text>
+          <Text style={ui.small}>
+            Ticked sets are already saved. Rate your back and effort, then finish to complete the workout.
+          </Text>
           <ScalePicker
             label="Lower back pain during/after"
             min={0}
@@ -308,7 +418,7 @@ export default function SessionScreen({ route, navigation }: Props) {
             placeholder="Notes for your coach (e.g. RDLs felt it in lower back)"
             placeholderTextColor={colors.muted}
           />
-          <Button title="Save workout" onPress={finish} />
+          <Button title="Finish & save workout" onPress={finish} />
         </View>
       </KeyboardAwareScrollView>
     </View>

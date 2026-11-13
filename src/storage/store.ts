@@ -117,7 +117,15 @@ export interface WorkoutLog {
   /** 1 = very easy, 5 = could not do one more rep */
   effort: number;
   notes: string;
+  /**
+   * false while the workout is still going: sets are saved as they're ticked, and back pain and effort aren't
+   * rated yet. Missing = finished (all logs before this field existed were saved at the end).
+   */
+  finished?: boolean;
 }
+
+/** A workout saved as it goes and not finished yet. Its back pain and effort are not ratings yet. */
+export const isUnfinished = (l: AnyLog): l is WorkoutLog => l.kind === 'session' && l.finished === false;
 export interface CardioLog {
   id: string;
   kind: 'cardio';
@@ -139,6 +147,26 @@ export async function addLog(log: Omit<WorkoutLog, 'id'> | Omit<CardioLog, 'id'>
   logs.unshift({ ...log, id: uid() } as AnyLog);
   await writeJson(LOGS, logs);
 }
+/** New id for a workout saved as it goes (see saveWorkout). */
+export const newLogId = uid;
+
+/** Saves a workout, replacing the saved copy with the same id. Used to save a session after every tick. */
+export async function saveWorkout(log: WorkoutLog) {
+  const logs = await getLogs();
+  const i = logs.findIndex(l => l.id === log.id);
+  if (i >= 0) logs[i] = log;
+  else logs.unshift(log);
+  await writeJson(LOGS, logs);
+}
+
+const sameLocalDay = (iso: string, now = new Date()) => new Date(iso).toDateString() === now.toDateString();
+
+/** Today's unfinished workout (for one session, or any), to continue where the user left off. */
+export async function unfinishedToday(session?: SessionId): Promise<WorkoutLog | null> {
+  const found = (await getLogs()).find(l => isUnfinished(l) && sameLocalDay(l.date) && (!session || l.session === session));
+  return (found as WorkoutLog | undefined) ?? null;
+}
+
 export async function deleteLog(id: string) {
   const logs = await getLogs();
   await writeJson(LOGS, logs.filter(l => l.id !== id));
@@ -148,18 +176,22 @@ export async function logsSince(days: number): Promise<AnyLog[]> {
   return (await getLogs()).filter(l => l.date >= cutoff);
 }
 
-/** Alternate A and B: next strength day is the opposite of the last one logged. */
+/**
+ * Alternate A and B: next strength day is the opposite of the last one logged. If today's strength day was
+ * started and not finished, it's still that one, so the user can continue it.
+ */
 export async function nextStrengthSession(): Promise<'A' | 'B'> {
   const last = (await getLogs()).find(
     (l): l is WorkoutLog => l.kind === 'session' && (l.session === 'A' || l.session === 'B'),
   );
+  if (last && isUnfinished(last) && sameLocalDay(last.date)) return last.session as 'A' | 'B';
   return last?.session === 'A' ? 'B' : 'A';
 }
 
-/** Most recent logged weight and reps for an exercise, to prefill the next session. */
-export async function lastPerformance(exerciseId: string): Promise<SetLog[] | null> {
+/** Most recent logged weight and reps for an exercise, to prefill the next session. `skipLogId`: the workout in progress. */
+export async function lastPerformance(exerciseId: string, skipLogId?: string): Promise<SetLog[] | null> {
   for (const l of await getLogs()) {
-    if (l.kind !== 'session') continue;
+    if (l.kind !== 'session' || l.id === skipLogId) continue;
     const sets = l.sets.filter(s => s.exerciseId === exerciseId && s.done);
     if (sets.length) return sets;
   }

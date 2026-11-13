@@ -1,5 +1,5 @@
 // Daily progress stats built from the workout logs. Read-only: nothing here is stored.
-import { AnyLog } from '../storage/store';
+import { AnyLog, isUnfinished } from '../storage/store';
 
 /** Local calendar day as YYYY-MM-DD (logs are stored in UTC, but a day is your day). */
 export function dayKey(d: Date): string {
@@ -14,7 +14,7 @@ export interface DayStats {
   postureSets: number;
   strengthSets: number;
   walkMinutes: number;
-  /** Highest back pain logged that day, or null if nothing was logged */
+  /** Highest back pain rated that day, or null if none (unfinished workouts aren't rated yet) */
   maxPain: number | null;
   active: boolean;
 }
@@ -34,6 +34,7 @@ export function dailyStats(logs: AnyLog[], days: number, now = new Date()): DayS
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
     const key = dayKey(date);
     const dayLogs = byDay.get(key) ?? [];
+    const rated = dayLogs.filter(l => !isUnfinished(l));
     let postureSets = 0;
     let strengthSets = 0;
     let walkMinutes = 0;
@@ -51,7 +52,7 @@ export function dailyStats(logs: AnyLog[], days: number, now = new Date()): DayS
       postureSets,
       strengthSets,
       walkMinutes,
-      maxPain: dayLogs.length ? Math.max(...dayLogs.map(l => l.backPain)) : null,
+      maxPain: rated.length ? Math.max(...rated.map(l => l.backPain)) : null,
       active: dayLogs.length > 0,
     });
   }

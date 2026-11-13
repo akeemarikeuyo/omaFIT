@@ -42,7 +42,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/api/coach.ts` | Provider-neutral coaching: `athleteProfile()` from Settings, `COACHING_RULES`, cacheable `librarySystemBlock()`, weekly review + `validateChanges`, coach chat |
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
-| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs, overrides, reviews, chat, demo picks |
+| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (a workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating: check `isUnfinished` before reading them), overrides, reviews, chat, demo picks |
 | `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (omaFIT wordmark + dumbbell), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
 | `src/screens/` | Today, Progress, Session, Exercise, Review, Coach, Settings, PlanBuilder |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |

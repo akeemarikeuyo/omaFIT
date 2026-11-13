@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
+import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { Button, Pill, ScalePicker, painColor } from '../components/ui';
 import { dayKind, RED_FLAGS, SESSIONS, SessionId, walkForWeek } from '../data/plan';
 import { dailyStats, encouragement, summary } from '../data/progress';
@@ -15,10 +16,12 @@ import {
   deleteLog,
   getLogs,
   getSettings,
+  isUnfinished,
   nextStrengthSession,
   programWeek,
+  unfinishedToday,
+  WorkoutLog,
 } from '../storage/store';
-import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -29,12 +32,14 @@ export default function TodayScreen() {
   const [next, setNext] = useState<'A' | 'B'>('A');
   const [logs, setLogs] = useState<AnyLog[]>([]);
   const [showWalk, setShowWalk] = useState(false);
+  const [open, setOpen] = useState<WorkoutLog | null>(null);
 
   const load = useCallback(async () => {
     const s = await getSettings();
     setWeek(programWeek(s.startDate));
     setNext(await nextStrengthSession());
     setLogs(await getLogs());
+    setOpen(await unfinishedToday());
   }, []);
 
   useFocusEffect(
@@ -47,7 +52,8 @@ export default function TodayScreen() {
   const kind = dayKind(today);
   const walk = walkForWeek(week);
   const todayStr = today.toISOString().slice(0, 10);
-  const doneToday = logs.filter(l => l.date.slice(0, 10) === todayStr);
+  // "Done" means finished. An unfinished workout shows as Continue instead.
+  const doneToday = logs.filter(l => l.date.slice(0, 10) === todayStr && !isUnfinished(l));
   const postureDone = doneToday.some(l => l.kind === 'session' && l.session === 'posture');
   const strengthDone = doneToday.some(l => l.kind === 'session' && l.session !== 'posture');
   const cardioDone = doneToday.some(l => l.kind === 'cardio');
@@ -55,7 +61,8 @@ export default function TodayScreen() {
   const stats = summary(logs);
   const last7 = dailyStats(logs, 7);
 
-  const recentPain =logs.slice(0, 3).map(l => l.backPain);
+  const recentPain = logs.filter(l => !isUnfinished(l)).slice(0, 3).map(l => l.backPain);
+  const openDone = open ? open.sets.filter(s => s.done).length : 0;
   const painHigh = recentPain.length > 0 && Math.max(...recentPain) >= 6;
 
   const start = (id: SessionId) => nav.navigate('Session', { sessionId: id });
@@ -74,6 +81,23 @@ export default function TodayScreen() {
           <Text style={ui.small}>{today.toDateString()} · Program week {week}</Text>
           <Text style={ui.h1}>Today</Text>
         </View>
+
+        {open && (
+          <Pressable
+            onPress={() => start(open.session)}
+            accessibilityRole="button"
+            style={[ui.card, { borderColor: colors.accent, borderWidth: 2 }]}
+          >
+            <View style={[ui.row, { justifyContent: 'space-between' }]}>
+              <Text style={ui.h2}>Continue {SESSIONS[open.session].title}</Text>
+              <Pill text="Unfinished" />
+            </View>
+            <Text style={ui.muted}>
+              {openDone} of {open.sets.length} sets done. Pick up where you left off.
+            </Text>
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>Continue →</Text>
+          </Pressable>
+        )}
 
         <Pressable onPress={() => nav.navigate('Tabs', { screen: 'Progress' })} style={ui.card}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
@@ -179,7 +203,11 @@ export default function TodayScreen() {
               </Text>
               <Text style={ui.small}>{new Date(l.date).toDateString()} · long-press to delete</Text>
             </View>
-            <Text style={{ color: painColor(l.backPain), fontWeight: '700' }}>back {l.backPain}/10</Text>
+            {isUnfinished(l) ? (
+              <Text style={{ color: colors.muted, fontWeight: '700' }}>unfinished</Text>
+            ) : (
+              <Text style={{ color: painColor(l.backPain), fontWeight: '700' }}>back {l.backPain}/10</Text>
+            )}
           </Pressable>
         ))}
       </KeyboardAwareScrollView>
