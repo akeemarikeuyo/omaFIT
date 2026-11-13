@@ -9,6 +9,8 @@ export const colors = {
   muted: '#9AA1AC',
   accent: '#F5B82E', // jersey gold
   accentText: '#1A1405',
+  /** Gold at low opacity: background behind the selected tab icon */
+  accentSoft: 'rgba(245, 184, 46, 0.16)',
   purple: '#7B5CD6',
   good: '#3CC18A',
   warn: '#F08A4B',

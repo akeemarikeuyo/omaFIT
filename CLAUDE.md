@@ -17,6 +17,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - React Navigation 7: native stack + bottom tabs (not Expo Router)
 - Storage on device only: AsyncStorage (logs, settings and profile, reviews, chat) and expo-secure-store (one AI API
   key per provider)
+- `@expo/vector-icons` (Ionicons) for the tab bar icons; the font ships in the app, nothing loads from the internet.
 - expo-image for demo photos. YouTube demo links open with `Linking`, with no extra package.
 - Develop outside OneDrive or other synced folders. Syncing breaks Metro's file watcher (stale bundles).
 

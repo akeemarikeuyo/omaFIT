@@ -1,9 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchScreen } from './src/components/LaunchScreen';
 import { RootStackParamList, TabParamList } from './src/navigation';
@@ -39,17 +41,53 @@ const theme = {
   },
 };
 
+type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Tab icons: filled when selected, outline otherwise. */
+const TAB_ICONS: Record<keyof TabParamList, [IconName, IconName]> = {
+  Today: ['today', 'today-outline'],
+  Progress: ['stats-chart', 'stats-chart-outline'],
+  Review: ['sparkles', 'sparkles-outline'],
+  Coach: ['chatbubbles', 'chatbubbles-outline'],
+  Settings: ['settings', 'settings-outline'],
+};
+
+/** The selected tab's icon sits on a soft gold pill, like a native nav bar. */
+function TabIcon({ route, focused, color }: { route: keyof TabParamList; focused: boolean; color: string }) {
+  const [filled, outline] = TAB_ICONS[route];
+  return (
+    <View
+      style={{
+        width: 56,
+        height: 30,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? colors.accentSoft : 'transparent',
+      }}
+    >
+      <Ionicons name={focused ? filled : outline} size={21} color={color} />
+    </View>
+  );
+}
+
 function Tabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        tabBarIconStyle: { display: 'none' },
-        tabBarLabelStyle: { fontSize: 14, fontWeight: '700' },
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
-      }}
+        tabBarIcon: ({ focused, color }) => <TabIcon route={route.name} focused={focused} color={color} />,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+        tabBarItemStyle: { paddingTop: 6 },
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          elevation: 0,
+        },
+      })}
     >
       <Tab.Screen name="Today" component={TodayScreen} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
