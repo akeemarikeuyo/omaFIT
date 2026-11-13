@@ -1,10 +1,11 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, Text, View } from 'react-native';
 import { ExerciseDemo } from '../components/ExerciseDemo';
 import { Button, Pill } from '../components/ui';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { RootStackParamList } from '../navigation';
+import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Exercise'>;
@@ -28,7 +29,7 @@ export default function ExerciseScreen({ route, navigation }: Props) {
   if (!ex) return <View style={ui.screen} />;
 
   return (
-    <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
+    <KeyboardAwareScrollView style={ui.screen} contentContainerStyle={ui.content}>
       {/* key forces the demo to reload if the exercise was swapped by a review */}
       <ExerciseDemo
         key={`${ex.id}:${ex.name}`}
@@ -76,6 +77,6 @@ export default function ExerciseScreen({ route, navigation }: Props) {
         The demo shows the movement pattern. Your plan's cues and equipment win if they differ, e.g. a band
         instead of a cable.
       </Text>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }

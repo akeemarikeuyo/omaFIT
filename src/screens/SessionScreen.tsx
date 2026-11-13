@@ -1,18 +1,8 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  AppState,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  Vibration,
-  View,
-} from 'react-native';
+import { Alert, AppState, Pressable, Text, TextInput, Vibration, View } from 'react-native';
+import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { Button, ScalePicker, painColor } from '../components/ui';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { RED_FLAGS, Session } from '../data/plan';
@@ -205,7 +195,7 @@ export default function SessionScreen({ route, navigation }: Props) {
   if (!session) return <View style={ui.screen} />;
 
   return (
-    <KeyboardAvoidingView style={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={ui.screen}>
       {rest > 0 && (
         <Pressable
           onPress={skipRest}
@@ -221,7 +211,7 @@ export default function SessionScreen({ route, navigation }: Props) {
           )}
         </Pressable>
       )}
-      <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={ui.content}>
         <Text style={ui.muted}>{session.subtitle}</Text>
         <Text style={ui.small}>
           {doneSets}/{totalSets} sets done · {restSeconds} s rest
@@ -320,7 +310,7 @@ export default function SessionScreen({ route, navigation }: Props) {
           />
           <Button title="Save workout" onPress={finish} />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }

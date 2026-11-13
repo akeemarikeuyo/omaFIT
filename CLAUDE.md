@@ -43,7 +43,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
 | `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs, overrides, reviews, chat, demo picks |
-| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (omaFIT wordmark + dumbbell), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test) |
+| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (omaFIT wordmark + dumbbell), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
 | `src/screens/` | Today, Progress, Session, Exercise, Review, Coach, Settings, PlanBuilder |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |
@@ -124,6 +124,8 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 ## Conventions
 - Functional components + hooks; screens reload data with `useFocusEffect`.
+- Screens with text inputs use `KeyboardAwareScrollView` (forms) or `KeyboardAvoider` (chat input bar) from
+  `src/components/KeyboardAware.tsx`, so the keyboard never covers what the user is typing.
 - Use `colors`, `space` and `ui` from `src/theme`. Reuse `Button`, `ScalePicker`, `Pill` and `Brand` instead of new
   one-off styles.
 - Plan exercise ids (e.g. `goblet-squat`, `face-pull`) are referenced by logs, overrides and demo picks. Don't rename an

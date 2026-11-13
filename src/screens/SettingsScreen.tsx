@@ -1,12 +1,13 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AISettings } from '../components/AISettings';
 import { Button, Segmented } from '../components/ui';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
 import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, userEquipment } from '../data/library';
+import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
 /** Profile as text-field values */
@@ -107,7 +108,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={ui.content}>
         <Text style={ui.h1}>Settings</Text>
 
         <AISettings />
@@ -239,7 +240,7 @@ export default function SettingsScreen() {
         <Text style={ui.small}>
           omaFIT is free and open source. The coach gives training suggestions, not medical advice.
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

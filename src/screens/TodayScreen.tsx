@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { Button, Pill, ScalePicker, painColor } from '../components/ui';
@@ -18,6 +18,7 @@ import {
   nextStrengthSession,
   programWeek,
 } from '../storage/store';
+import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -67,7 +68,7 @@ export default function TodayScreen() {
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <KeyboardAwareScrollView contentContainerStyle={ui.content}>
         <Brand />
         <View>
           <Text style={ui.small}>{today.toDateString()} · Program week {week}</Text>
@@ -181,7 +182,7 @@ export default function TodayScreen() {
             <Text style={{ color: painColor(l.backPain), fontWeight: '700' }}>back {l.backPain}/10</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
