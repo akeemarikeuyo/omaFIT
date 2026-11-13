@@ -5,11 +5,12 @@ import { SessionId } from '../data/plan';
 // ---------- API keys (phone's secure storage, never in the code) ----------
 
 /** One API key per AI provider. The Claude key keeps its original slot so existing keys still work. */
-export type KeyName = 'anthropic' | 'openai' | 'gemini';
+export type KeyName = 'anthropic' | 'openai' | 'gemini' | 'deepseek';
 const KEY_IDS: Record<KeyName, string> = {
   anthropic: 'anthropic_api_key',
   openai: 'openai_api_key',
   gemini: 'gemini_api_key',
+  deepseek: 'deepseek_api_key',
 };
 
 export async function getKey(name: KeyName): Promise<string | null> {
@@ -55,7 +56,7 @@ export interface Profile {
 
 export interface Settings {
   profile?: Profile;
-  /** Which AI provider the coach uses. Missing = Claude (the original provider). */
+  /** Which AI provider the coach uses. Missing = Gemini, or Claude if a Claude key is saved (see settingsWithProvider). */
   aiProvider?: KeyName;
   /** Model chosen per provider. Missing = that provider's default. */
   aiModels?: Partial<Record<KeyName, string>>;

@@ -1,5 +1,5 @@
 // Provider-neutral request/response shapes. The coach code builds an AIRequest; each provider adapter
-// (anthropic.ts, openai.ts, gemini.ts) translates it to that provider's API and back.
+// (anthropic.ts, openai.ts, gemini.ts, deepseek.ts) translates it to that provider's API and back.
 import type { KeyName } from '../../storage/store';
 
 export type ProviderId = KeyName;

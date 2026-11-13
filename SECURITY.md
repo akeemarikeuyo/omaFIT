@@ -49,7 +49,7 @@ reporting.
 
 ## Out of scope
 
-- Problems in third-party services or libraries themselves (the Anthropic, OpenAI or Google Gemini APIs, Expo,
+- Problems in third-party services or libraries themselves (the Anthropic, OpenAI, Google Gemini or DeepSeek APIs, Expo,
   React Native, GitHub, YouTube).
   Please report those to their owners. Tell us if omaFIT uses them in an unsafe way.
 - Attacks that need an already compromised or rooted phone, or physical access to an unlocked phone

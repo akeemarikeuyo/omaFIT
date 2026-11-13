@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { currentProvider } from '../api/ai';
+import { currentModel, currentProvider, modelReadsPhotos } from '../api/ai';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -70,10 +70,10 @@ export default function PlanBuilderScreen({ navigation }: Props) {
   const run = async () => {
     const list: PosturePhoto[] = VIEWS.flatMap(v => (photos[v.view] ? [{ view: v.view, base64: photos[v.view]!.base64 }] : []));
     const missing = VIEWS.filter(v => v.required && !photos[v.view]);
-    const go = async () => {
+    const go = async (send: PosturePhoto[] = list) => {
       setLoading(true);
       try {
-        setProposal(await buildPlan(list));
+        setProposal(await buildPlan(send));
         setPhotos({}); // photos are only kept for this one request
       } catch (e) {
         Alert.alert('Could not build a plan', e instanceof Error ? e.message : String(e));
@@ -81,10 +81,19 @@ export default function PlanBuilderScreen({ navigation }: Props) {
         setLoading(false);
       }
     };
-    if (list.length && missing.length) {
+    if (list.length && settings && !modelReadsPhotos(settings)) {
+      Alert.alert(
+        "This model can't read photos",
+        `${currentModel(settings)} only reads text. Pick a model that reads images in Settings, or build your plan without the photos.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue without photos', onPress: () => go([]) },
+        ],
+      );
+    } else if (list.length && missing.length) {
       Alert.alert('Add the other photo?', 'Front and side views together give the best posture read.', [
         { text: 'Add it', style: 'cancel' },
-        { text: 'Continue anyway', onPress: go },
+        { text: 'Continue anyway', onPress: () => go() },
       ]);
     } else go();
   };
@@ -168,10 +177,11 @@ export default function PlanBuilderScreen({ navigation }: Props) {
           request, and not saved by omaFIT. Only the written findings are kept. The AI describes what it sees; it can't
           diagnose anything.
         </Text>
-        {provider?.id === 'gemini' && (
+        {!!provider?.photoWarning && <Text style={[ui.small, { color: colors.warn }]}>{provider.photoWarning}</Text>}
+        {!!settings && !modelReadsPhotos(settings) && (
           <Text style={[ui.small, { color: colors.warn }]}>
-            On Gemini's free tier, Google may use what you send, including these photos, to improve its products. Skip
-            the photos or use a paid plan if that matters to you.
+            Your AI model ({currentModel(settings)}) can't read photos. Pick one that reads images in Settings to use
+            them.
           </Text>
         )}
       </View>

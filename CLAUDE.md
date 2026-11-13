@@ -10,7 +10,7 @@ Akeem Akanni-ola ([akanniola.com](https://www.akanniola.com)). MIT licensed.
 **Direction (shapes design decisions):** plans are built per user. "Build my plan" (Review tab) sends the user's
 profile, equipment, logs and optional posture photos to their AI agent, which proposes changes using only exercises
 from the bundled library. Users choose their AI in Settings: Gemini (Google, the default for new users because it has a free tier), Claude
-(Anthropic) or ChatGPT (OpenAI). Keep new code generic, per-user and provider-neutral: no one's personal details in the code.
+(Anthropic), ChatGPT (OpenAI) or DeepSeek. Keep new code generic, per-user and provider-neutral: no one's personal details in the code.
 
 ## Stack
 - Expo SDK 58, React Native 0.88, React 19, TypeScript (strict)
@@ -45,7 +45,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/data/library.ts` | What the AI may pick: `rejectReason()` (equipment fit with substitutes, banned lifts, level/category, posture-routine limits), `candidates()`, `upperBodyBalance()`, added-exercise ids `lib-<session>-<libraryId>` |
 | `src/data/progress.ts` | Streak, weekly and daily stats for the Progress tab and the Today streak card (read-only, derived from logs) |
 | `src/data/exerciseIndex.json` | Bundled free-exercise-db library: 873 exercises (id, name, equipment, category, force, level, muscles, image paths). Regenerate with `scripts/build-exercise-index.js`. |
-| `src/api/ai/` | Provider layer. `index.ts`: `askAI()` (the only way the app calls an AI), `PROVIDERS` registry (label, `defaultModel`, key page, cost/privacy note), `listModels()`, `testConnection()`. `types.ts`: neutral `AIRequest`/`AIResult`, `AIError`. One adapter per provider: `anthropic.ts` (Messages API), `openai.ts` (Responses API, `store: false`), `gemini.ts` (stateless `generateContent`) |
+| `src/api/ai/` | Provider layer. `index.ts`: `askAI()` (the only way the app calls an AI), `PROVIDERS` registry (label, `defaultModel`, key page, cost/privacy note), `listModels()`, `testConnection()`. `types.ts`: neutral `AIRequest`/`AIResult`, `AIError`. One adapter per provider: `anthropic.ts` (Messages API), `openai.ts` (Responses API, `store: false`), `gemini.ts` (stateless `generateContent`), `deepseek.ts` (OpenAI-compatible Chat Completions) |
 | `src/api/coach.ts` | Provider-neutral coaching: `athleteProfile()` from Settings, `COACHING_RULES`, cacheable `librarySystemBlock()`, weekly review + `validateChanges`, coach chat |
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
@@ -91,10 +91,13 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
   `KeyName` slot in `store.ts`, add its API and key-page hosts to `ALLOWED_URLS`, and document its cost and privacy note.
 - **Structured answers** come back as one tool call (`AIRequest.tool`). Adapters force the tool where the provider
   allows it (OpenAI, Gemini). Current Claude models reject a forced tool, so the Claude adapter uses `auto` and the
-  prompt names the tool. Output from every provider is untrusted: always type-check and run it through the validators.
+  prompt names the tool. DeepSeek rejects a forced tool while thinking, so its adapter tries `auto` first and retries
+  once with thinking off and the tool forced. Output from every provider is untrusted: always type-check and run it through the validators.
   Keep `maxTokens` generous (models think first), and keep the library block last in `system` with `cache: true`.
 - **Provider privacy:** OpenAI calls send `store: false`; Gemini uses stateless `generateContent`, not the stateful
-  Interactions API. Keep Gemini's free-tier data-use warning in Settings and on the photo screen.
+  Interactions API. Keep Gemini's free-tier data-use warning and DeepSeek's note (data stored in China, may be used for
+  training) in Settings and on the photo screen: they live in `PROVIDERS` (`note`, `photoWarning`). Models that can't
+  read images are marked with `readsPhotos`, and the photo screen offers to continue without photos.
 - Storage keys end in `_v1`. Adding an optional field is fine. If you change a stored shape incompatibly, bump the key
   or migrate old data so existing logs aren't lost. `saveSettings` merges a partial patch, so never overwrite settings
   wholesale.
@@ -106,7 +109,7 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 - **Network:** `fetch` and other network APIs are allowed only in `src/api/`. Every web address in code must be on the
   `ALLOWED_URLS` list in `eslint.config.js`: the supported AI providers' APIs and key pages (Anthropic, OpenAI,
-  Google), the free-exercise-db GitHub repo, YouTube, Expo docs, the maintainer's site. Never send user data anywhere
+  Google, DeepSeek), the free-exercise-db GitHub repo, YouTube, Expo docs, the maintainer's site. Never send user data anywhere
   except the AI provider the user chose.
 - **Data the AI receives:** only what's needed (profile, equipment, findings, plan, last 2 weeks of logs, photos only
   on Analyse). Show the user when data leaves the phone. Never send the API key anywhere but the provider's auth header.

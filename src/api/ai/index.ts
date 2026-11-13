@@ -3,6 +3,7 @@
 // and add its API host to ALLOWED_URLS in eslint.config.js.
 import { getKey, getSettings, saveSettings, Settings } from '../../storage/store';
 import { anthropic } from './anthropic';
+import { deepseek } from './deepseek';
 import { gemini } from './gemini';
 import { openai } from './openai';
 import { AIError, AIRequest, AIResult, ModelOption, ProviderAdapter, ProviderId } from './types';
@@ -20,6 +21,10 @@ export interface ProviderInfo {
   keyUrl: string;
   /** Plain-language cost and privacy note shown in Settings */
   note: string;
+  /** Extra privacy warning shown next to the posture photos, if this provider needs one */
+  photoWarning?: string;
+  /** Whether a model can read images. Missing = all of this provider's chat models can. */
+  readsPhotos?: (model: string) => boolean;
   adapter: ProviderAdapter;
 }
 
@@ -34,6 +39,8 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     keyUrl: 'https://aistudio.google.com/apikey',
     note:
       'Has a free tier (with usage limits). On the free tier Google may use what you send, including posture photos, to improve its products. A paid Google AI plan avoids this.',
+    photoWarning:
+      "On Gemini's free tier, Google may use what you send, including these photos, to improve its products. Skip the photos or use a paid plan if that matters to you.",
     adapter: gemini,
   },
   anthropic: {
@@ -55,6 +62,22 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     keyUrl: 'https://platform.openai.com/api-keys',
     note: 'Paid API, billed by OpenAI. Separate from a ChatGPT Plus subscription.',
     adapter: openai,
+  },
+  deepseek: {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    company: 'DeepSeek',
+    // Flash is the cheaper model and the only one that reads posture photos
+    defaultModel: 'deepseek-flash',
+    keyPlaceholder: 'sk-…',
+    keyUrl: 'https://platform.deepseek.com/api_keys',
+    note:
+      'Paid API with low prices, billed by DeepSeek. DeepSeek stores what you send on servers in China, and its privacy policy allows using it to improve its models.',
+    photoWarning:
+      'DeepSeek stores what you send, including these photos, in China and may use it to improve its models. Skip the photos if that matters to you.',
+    // deepseek-v4-pro is text only
+    readsPhotos: model => !/pro/i.test(model),
+    adapter: deepseek,
   },
 };
 
@@ -80,6 +103,9 @@ export const currentModel = (s: Settings): string => {
   const p = currentProvider(s);
   return s.aiModels?.[p.id] || p.defaultModel;
 };
+
+/** Whether the chosen provider and model can read posture photos. */
+export const modelReadsPhotos = (s: Settings): boolean => currentProvider(s).readsPhotos?.(currentModel(s)) ?? true;
 
 /** Sends a request to the user's chosen provider and model. */
 export async function askAI(req: AIRequest): Promise<AIResult> {

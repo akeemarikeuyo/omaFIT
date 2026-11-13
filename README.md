@@ -20,7 +20,7 @@ assume a gym, a free schedule and no aches. omaFIT starts from the desk:
 - A **daily 10-minute posture and back routine** that also works as your warm-up.
 - **Strength sessions at home** that favour pulling, glutes and core, with back-friendly exercise choices.
 - **Walking and run-walk days** that fit around a working week.
-- An **AI coach you control.** Choose Claude, ChatGPT or Gemini (which has a free tier), add your own API key in
+- An **AI coach you control.** Choose Gemini (which has a free tier), Claude, ChatGPT or DeepSeek, add your own API key in
   Settings, and the coach reviews your logs and suggests next
   week's changes based on your profile, any pain you've logged and your progress. Nothing changes until you approve it.
 
@@ -101,6 +101,7 @@ Pick the AI you want under **Settings → AI coach**:
 | **Gemini** (Google) — *recommended to start* | [aistudio.google.com](https://aistudio.google.com/apikey) | **Free tier** with usage limits. On the free tier Google may use what you send, including posture photos, to improve its products |
 | **Claude** (Anthropic) | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Paid API, separate from a Claude Pro subscription |
 | **ChatGPT** (OpenAI) | [platform.openai.com](https://platform.openai.com/api-keys) | Paid API, separate from a ChatGPT Plus subscription |
+| **DeepSeek** | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | Paid API with low prices. DeepSeek stores what you send in China and may use it to improve its models. Only `deepseek-flash` (the default) reads posture photos |
 
 **No paid AI account? Use Gemini.** App subscriptions such as Claude Pro, ChatGPT Plus or Gemini in the Google app can't
 power third-party apps; they need a separate API key. Gemini's API key is free:
@@ -148,7 +149,7 @@ profile in `eas.json` builds an installable APK.
 - When you run a review, build a plan or chat, your profile, equipment, posture findings, plan and the last 2 weeks of
   logs are sent to the AI provider you chose, and nowhere else. OpenAI requests are sent with storage turned off, and
   Gemini uses Google's stateless endpoint. Each provider's own data policy still applies, including Gemini's free-tier
-  note above.
+  note and DeepSeek's note above.
 - **Posture photos** are shrunk on your phone and sent only to your AI provider, only when you tap **Analyse**.
   omaFIT doesn't save them to its data. Only the written findings are kept, and those are cleared when you uninstall.
   If you choose photos from your gallery, the originals stay there.
@@ -185,7 +186,7 @@ Ideas and pull requests are welcome.
 | `src/data/library.ts` | Which library exercises the AI may pick: equipment fit, safety bans, push/pull balance |
 | `src/data/exerciseIndex.json` | Bundled exercise library (873 exercises, all with demo photos) |
 | `src/data/progress.ts` | Streak and daily stats for the Progress tab |
-| `src/api/ai/` | AI provider layer: `askAI()`, the `PROVIDERS` registry (labels, default models, key pages) and one adapter each for Claude, OpenAI and Gemini |
+| `src/api/ai/` | AI provider layer: `askAI()`, the `PROVIDERS` registry (labels, default models, key pages) and one adapter each for Claude, OpenAI, Gemini and DeepSeek |
 | `src/api/coach.ts` | Profile prompt, coaching rules, weekly review and its `validateChanges` safety checks, coach chat |
 | `src/api/planBuilder.ts` | "Build my plan": photo + profile analysis, `validateProposal` safety checks, apply |
 | `src/api/demos.ts` | Free demo lookup and search |
