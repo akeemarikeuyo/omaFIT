@@ -39,3 +39,17 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# env files (secrets never go in the repo)
+.env
+.env.*
+
+# editors
+.idea/
+.vscode/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Android keystores
+*.keystore

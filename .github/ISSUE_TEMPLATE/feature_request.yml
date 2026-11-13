@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an idea or improvement for omaFIT.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        omaFIT is free, has no backend or accounts, and keeps data on the phone. Ideas that need a paid service,
+        tracking, or a server are unlikely to be accepted, but feel free to start a discussion.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What you're trying to do, and what gets in the way today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How you'd like it to work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Project fit
+      options:
+        - label: This works without a backend, accounts, tracking or paid services.
+        - label: I'd like to help build this.

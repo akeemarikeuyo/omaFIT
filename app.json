@@ -1,17 +1,20 @@
 {
   "expo": {
-    "name": "workout-app",
-    "slug": "workout-app",
+    "name": "omaFIT",
+    "slug": "omafit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.akanniola.omafit"
     },
     "android": {
+      "package": "com.akanniola.omafit",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0F1115",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +23,32 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F1115",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "omaFIT uses a photo you choose for your optional posture check. It is sent only to your own AI provider.",
+          "cameraPermission": "omaFIT uses the camera for your optional posture check photos. They are sent only to your own AI provider.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "description": "Open-source posture and home workout coach for people who sit all day. Bring your own AI agent key.",
+    "extra": {
+      "eas": {
+        "projectId": "88f4e122-fb49-4005-86c7-77b6a7186327"
+      }
     }
   }
 }

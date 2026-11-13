@@ -1,0 +1,100 @@
+name: Bug report
+description: Something in omaFIT doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve omaFIT.
+
+        **Security problem?** Don't open an issue. Report it privately, as described in SECURITY.md.
+
+        **Don't paste API keys, posture photos, health notes or other personal data here.** Issues are public.
+        Use test data, and blur or crop any screenshots that show personal details.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What went wrong, and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to the Review tab
+        2. Tap "Build my plan"
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the app
+      options:
+        - Today / workout session
+        - Progress
+        - Review / Build my plan
+        - Coach chat
+        - Settings / AI provider
+        - Exercise demos
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI provider
+      description: Only if the bug involves the AI.
+      options:
+        - Not AI related
+        - Gemini
+        - Claude
+        - ChatGPT
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: AI model
+      description: From Settings, if the bug involves the AI.
+      placeholder: e.g. gemini-4-hydrogen
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you run omaFIT
+      options:
+        - Expo Go (from source)
+        - Android APK
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      placeholder: e.g. Pixel 8, Android 16
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+      description: From app.json, or the commit you built from.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Error message, screenshots or anything else
+      description: Remove personal data first.

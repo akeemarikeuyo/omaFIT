@@ -1,0 +1,20 @@
+# Dependabot keeps dependencies up to date by opening pull requests. They run CI like any other PR.
+version: 2
+updates:
+  # GitHub Actions: updates the pinned commit SHAs in ci.yml (and keeps the version comment).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # npm: security fixes only. Expo and React Native versions must match the Expo SDK, so routine upgrades are done
+  # by hand with `npx expo install --fix`. A limit of 0 turns off version-update PRs; security-update PRs still
+  # open when "Dependabot security updates" is on in the repo settings.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0

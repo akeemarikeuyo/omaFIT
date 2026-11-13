@@ -1,0 +1,40 @@
+# Runs on every pull request. Required to pass before merging (turn on branch protection on GitHub).
+# Security notes:
+# - `pull_request` (never `pull_request_target`): fork PRs run without access to repo secrets.
+# - Read-only token, no credentials left in the checkout, install scripts disabled.
+# - Actions pinned to full commit SHAs so a moved tag can't swap in different code.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (lockfile only, no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Lint (code quality + security rules)
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Known vulnerabilities in app dependencies (high or critical)
+        run: npm audit --omit=dev --audit-level=high
