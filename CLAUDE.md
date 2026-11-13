@@ -44,11 +44,11 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
 | `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (a workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating: check `isUnfinished` before reading them), overrides, reviews, chat, demo picks |
-| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (omaFIT wordmark + dumbbell), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
+| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
 | `src/screens/` | Today, Progress, Session, Exercise, Review, Coach, Settings, PlanBuilder |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |
-| `scripts/make-icons.js` | Dependency-free PNG icon generator. The dumbbell shape matches `Brand.tsx`, so change both together. |
+| `scripts/make-icons.js` | Dependency-free PNG icon generator: builds every app icon, the splash image and `assets/logo-mark.png` (used by `Brand.tsx`) from the master `assets/logo.png`. To change the logo, replace the master and run `npm run icons`. |
 
 ## Rules — keep these unless the maintainer explicitly says otherwise
 - **Safety first.** Keep `validateChanges` (`src/api/coach.ts`) and `validateProposal` (`src/api/planBuilder.ts`).

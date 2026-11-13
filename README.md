@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="96" alt="omaFIT dumbbell logo" />
+  <img src="assets/icon.png" width="96" alt="omaFIT logo: a figure in motion with a gold spine" />
 </p>
 
 <h1 align="center">omaFIT</h1>
@@ -192,7 +192,7 @@ Ideas and pull requests are welcome.
 | `src/storage/store.ts` | All on-device persistence |
 | `src/components/` | Shared UI, demo player, daily chart, brand mark |
 | `src/screens/` | One file per screen |
-| `scripts/make-icons.js` | Regenerates the app icons (`npm run icons`) |
+| `scripts/make-icons.js` | Builds all app icons and the in-app logo from `assets/logo.png` (`npm run icons`) |
 | `scripts/build-exercise-index.js` | Rebuilds the exercise library from free-exercise-db's `dist/exercises.json` |
 
 ## Contributing
