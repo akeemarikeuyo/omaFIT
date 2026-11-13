@@ -4,6 +4,7 @@ import { Alert, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AISettings } from '../components/AISettings';
 import { Button, Segmented } from '../components/ui';
+import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS } from '../data/reviewSchedule';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
 import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, userEquipment } from '../data/library';
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const [startDate, setStartDate] = useState('');
   const [bodyweight, setBodyweight] = useState('');
   const [rest, setRest] = useState(DAY_A.restSeconds);
+  const [reviewDay, setReviewDay] = useState(DEFAULT_REVIEW_DAY);
   const [customRest, setCustomRest] = useState('');
   const [profile, setProfile] = useState<ProfileForm>(EMPTY_PROFILE);
   const [equipment, setEquipment] = useState<string[]>(DEFAULT_EQUIPMENT);
@@ -35,6 +37,7 @@ export default function SettingsScreen() {
   const load = useCallback(async () => {
     const s = await getSettings();
     setRest(Math.max(MIN_REST_SECONDS, s.restSeconds ?? DAY_A.restSeconds));
+    setReviewDay(reviewDayOf(s));
     setStartDate(s.startDate);
     setBodyweight(s.bodyweightKg ? String(s.bodyweightKg) : '');
     setEquipment(userEquipment(s));
@@ -51,6 +54,11 @@ export default function SettingsScreen() {
     });
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const chooseReviewDay = async (day: number) => {
+    setReviewDay(day);
+    await saveSettings({ reviewDay: day });
+  };
 
   const chooseRest = async (seconds: number) => {
     setRest(seconds);
@@ -112,6 +120,15 @@ export default function SettingsScreen() {
         <Text style={ui.h1}>Settings</Text>
 
         <AISettings />
+
+        <View style={ui.card}>
+          <Text style={ui.h2}>Weekly review day</Text>
+          <Text style={ui.small}>
+            Your weekly AI review opens on this day and stays open until you run it, once a week. Sunday suits most
+            plans: it's the rest day, so changes are ready for Monday.
+          </Text>
+          <Segmented options={WEEKDAYS.map((label, key) => ({ key, label }))} value={reviewDay} onChange={chooseReviewDay} />
+        </View>
 
         <View style={ui.card}>
           <Text style={ui.h2}>Rest between sets</Text>

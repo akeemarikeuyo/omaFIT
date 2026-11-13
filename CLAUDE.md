@@ -64,6 +64,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - **The AI only picks from the bundled library.** Every exercise the AI adds or swaps in must be an exact
   `exerciseIndex.json` id that passes `rejectReason()` in `src/data/library.ts`, so it always has a demo and fits the
   user's equipment. Never accept free-text exercises from the AI.
+- **Weekly review runs once a week** (`src/data/reviewSchedule.ts`): it opens on the user's review day (`Settings.reviewDay`, default Sunday) and stays open until run; "Reset plan to original" unlocks one extra. `runWeeklyReview` enforces it, not only the UI. Don't remove the limit: it keeps users' API costs predictable.
 - **Nothing changes the plan silently.** AI suggestions apply only when the user taps Apply (`mergeOverrides`,
   `addAdditions`). `plan.ts` is the baseline, and "Reset plan" (`resetPlan`) must keep working.
 - **Posture photos are never stored by the app.** They're resized on the phone, sent once to the user's AI provider

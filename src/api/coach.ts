@@ -1,6 +1,7 @@
 import { effectivePlan, exerciseLabel, planAsText } from '../data/effective';
 import { candidates, EQUIPMENT_OPTIONS, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
 import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
+import { reviewStatus } from '../data/reviewSchedule';
 import { SessionId } from '../data/plan';
 import {
   AnyLog,
@@ -8,6 +9,7 @@ import {
   ExerciseOverride,
   getLogs,
   getPostureAssessment,
+  getReviews,
   getSettings,
   logsSince,
   programWeek,
@@ -279,6 +281,11 @@ export async function runWeeklyReview(): Promise<ReviewResult> {
     throw new AIError('Log at least one workout before running a review.');
   }
   const settings = await getSettings();
+  // Once a week (see reviewSchedule.ts). Checked here too, not just in the UI, so no screen can run extra reviews.
+  const status = reviewStatus(await getReviews(), settings);
+  if (!status.allowed) {
+    throw new AIError(`You've had this week's review. The next one opens on ${status.next?.toDateString()}.`);
+  }
   const { toolInput } = await askAI({
     maxTokens: 16000,
     system: [{ text: `You are a careful strength and posture coach.\n\n${COACHING_RULES}` }, librarySystemBlock(settings)],

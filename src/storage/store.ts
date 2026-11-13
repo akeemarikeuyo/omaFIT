@@ -71,6 +71,10 @@ export interface Settings {
   restSeconds?: number;
   /** The one-time "turn on notifications?" question has been shown (see src/session/restAlert.ts). */
   notificationsAsked?: boolean;
+  /** Day the weekly review unlocks, 0 = Sunday … 6 = Saturday. Missing = Sunday. See src/data/reviewSchedule.ts. */
+  reviewDay?: number;
+  /** When "Reset plan to original" was last used: unlocks one extra weekly review. */
+  planResetAt?: string;
 }
 const SETTINGS = 'settings_v1';
 
@@ -293,6 +297,8 @@ export async function resetPlan() {
   // Nothing is applied any more, so reviews and AI plans can be applied again
   await writeJson(REVIEWS, (await getReviews()).map(r => ({ ...r, applied: false })));
   await writeJson(PROPOSALS, (await getProposals()).map(p => ({ ...p, applied: false })));
+  // Starting over unlocks one extra weekly review
+  await saveSettings({ planResetAt: new Date().toISOString() });
 }
 
 // ---------- posture check (findings only; photos are never stored) ----------

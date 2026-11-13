@@ -32,7 +32,7 @@ No accounts, no backend, no subscription. Your data stays on your phone.
 | --- | --- |
 | **Today** | Today's session from the weekly schedule, the daily posture routine, walk logging, your streak, and recent history. |
 | **Progress** | Day streak, active days this week, and a daily chart of sets done, walk minutes and pain, with where it hurt (2 weeks or 30 days). |
-| **Review** | **Build my plan with AI** (see below), and a weekly review where your AI coach reads the last 2 weeks of logs and suggests up to 4 changes. You tap **Apply** to accept them, and **Reset plan** restores the original. |
+| **Review** | **Build my plan with AI** (see below), and a weekly review where your AI coach reads the last 2 weeks of logs and suggests up to 4 changes. It runs once a week, from your review day (Sunday unless you change it in Settings), to keep AI costs predictable and build a weekly habit. You tap **Apply** to accept them, and **Reset plan** restores the original. |
 | **Coach** | Chat with your AI coach. It sees your profile, posture findings, plan and recent logs. |
 | **Settings** | AI key, your profile (goals, sitting hours, posture and back notes), your equipment, rest time between sets, program start date. |
 
