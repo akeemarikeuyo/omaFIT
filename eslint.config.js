@@ -18,6 +18,8 @@ const ALLOWED_URLS = [
   'https://platform.openai.com/',
   'https://generativelanguage.googleapis.com/',
   'https://aistudio.google.com/',
+  'https://api.deepseek.com/',
+  'https://platform.deepseek.com/',
   // Free exercise demos
   'https://raw.githubusercontent.com/yuhonas/free-exercise-db/',
   'https://github.com/yuhonas/free-exercise-db',
