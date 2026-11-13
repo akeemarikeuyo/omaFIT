@@ -1,7 +1,6 @@
 # Shown when someone clicks "New issue". Blank issues are off so reports use the forms above.
-# Replace OWNER/omafit with the real GitHub username/repo after creating the repo.
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/OWNER/omafit/security/advisories/new
+    url: https://github.com/akeemarikeuyo/omaFIT/security/advisories/new
     about: Please report security problems privately here, not in a public issue. See SECURITY.md.

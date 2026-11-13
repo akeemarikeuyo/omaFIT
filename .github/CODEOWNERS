@@ -1,21 +1,20 @@
 # Code owners are asked to review every pull request that touches their files.
 # With branch protection's "Require review from Code Owners", these PRs can't merge without the maintainer.
-# Replace OWNER with the maintainer's GitHub username after creating the repo.
 
 # Everything
-*                           @OWNER
+*                           @akeemarikeuyo
 
 # High-risk paths (listed so they stay owned if the rule above is ever narrowed)
-/.github/                   @OWNER
-/eslint.config.js           @OWNER
-/scripts/                   @OWNER
-/app.json                   @OWNER
-/eas.json                   @OWNER
-/package.json               @OWNER
-/package-lock.json          @OWNER
-/SECURITY.md                @OWNER
+/.github/                   @akeemarikeuyo
+/eslint.config.js           @akeemarikeuyo
+/scripts/                   @akeemarikeuyo
+/app.json                   @akeemarikeuyo
+/eas.json                   @akeemarikeuyo
+/package.json               @akeemarikeuyo
+/package-lock.json          @akeemarikeuyo
+/SECURITY.md                @akeemarikeuyo
 
 # Safety logic, AI provider layer and storage
-/src/api/                   @OWNER
-/src/data/library.ts        @OWNER
-/src/storage/               @OWNER
+/src/api/                   @akeemarikeuyo
+/src/data/library.ts        @akeemarikeuyo
+/src/storage/               @akeemarikeuyo
