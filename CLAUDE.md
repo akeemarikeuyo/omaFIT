@@ -29,6 +29,12 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - `npx expo install <pkg>` — add packages with SDK-compatible versions. Don't use plain `npm install <pkg>` for
   Expo/RN packages.
 - `npm run icons` — regenerate app icons from `scripts/make-icons.js`
+- Local APK (Windows): `npx expo prebuild --platform android --clean` (only after adding a package or changing
+  `app.json`), then in `android/`: `./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`. Native build
+  paths pass Windows' 260-character limit, so Gradle must use CMake 3.31+ (its Ninja handles long paths): prebuild
+  deletes `android/local.properties`, so recreate it with `sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk` and
+  `cmake.dir=C\:/Users/<you>/AppData/Local/Android/Sdk/cmake/3.31.6` (forward slashes; install CMake 3.31 in the SDK
+  Manager if missing). Without it the build fails with `ninja: error: mkdir(...): No such file or directory`.
 
 ## Layout
 | Path | What |
