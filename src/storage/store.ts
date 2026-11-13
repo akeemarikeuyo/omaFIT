@@ -129,6 +129,8 @@ export interface WorkoutLog {
   backPain: number;
   /** Pain or discomfort by area. Missing on logs from before this field: painsOf() falls back to backPain. */
   pains?: PainEntry[];
+  /** false = pain wasn't asked (posture routine). Missing = asked. See isPainRated(). */
+  painRated?: boolean;
   /** 1 = very easy, 5 = could not do one more rep */
   effort: number;
   notes: string;
@@ -141,6 +143,12 @@ export interface WorkoutLog {
 
 /** A workout saved as it goes and not finished yet. Its pain and effort are not ratings yet. */
 export const isUnfinished = (l: AnyLog): l is WorkoutLog => l.kind === 'session' && l.finished === false;
+
+/**
+ * Whether this log has a pain rating. Pain is asked on strength days only: walks and the posture routine are saved
+ * with `painRated: false`, so their empty pain list never counts as "no pain". Older logs always asked.
+ */
+export const isPainRated = (l: AnyLog) => !isUnfinished(l) && l.painRated !== false;
 export interface CardioLog {
   id: string;
   kind: 'cardio';
@@ -150,6 +158,8 @@ export interface CardioLog {
   /** Lower back score, as on WorkoutLog. Read pain with painsOf(). */
   backPain: number;
   pains?: PainEntry[];
+  /** false = pain wasn't asked (walks no longer ask). Missing = asked (older logs). */
+  painRated?: boolean;
   notes: string;
 }
 export type AnyLog = WorkoutLog | CardioLog;

@@ -1,5 +1,5 @@
 // Daily progress stats built from the workout logs. Read-only: nothing here is stored.
-import { AnyLog, isUnfinished } from '../storage/store';
+import { AnyLog, isPainRated } from '../storage/store';
 import { maxPain, painLabel, painsOf } from './pain';
 
 /** Local calendar day as YYYY-MM-DD (logs are stored in UTC, but a day is your day). */
@@ -15,7 +15,7 @@ export interface DayStats {
   postureSets: number;
   strengthSets: number;
   walkMinutes: number;
-  /** Highest pain rated that day in any area (0 = rated, no pain), or null if nothing rated (unfinished workouts aren't) */
+  /** Highest pain rated that day in any area (0 = rated, no pain), or null if nothing rated (only strength days ask) */
   maxPain: number | null;
   active: boolean;
 }
@@ -35,7 +35,7 @@ export function dailyStats(logs: AnyLog[], days: number, now = new Date()): DayS
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
     const key = dayKey(date);
     const dayLogs = byDay.get(key) ?? [];
-    const rated = dayLogs.filter(l => !isUnfinished(l));
+    const rated = dayLogs.filter(isPainRated);
     let postureSets = 0;
     let strengthSets = 0;
     let walkMinutes = 0;
@@ -118,7 +118,7 @@ export interface PainPlace {
 export function painPlaces(logs: AnyLog[], since: Date): PainPlace[] {
   const byPlace = new Map<string, { days: Set<string>; worst: number }>();
   for (const l of logs) {
-    if (isUnfinished(l) || new Date(l.date) < since) continue;
+    if (!isPainRated(l) || new Date(l.date) < since) continue;
     for (const p of painsOf(l)) {
       const label = painLabel(p);
       const e = byPlace.get(label) ?? { days: new Set<string>(), worst: 0 };

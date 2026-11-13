@@ -71,6 +71,8 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [sets, setSets] = useState<Record<string, SetState[]>>({});
   const [lastText, setLastText] = useState<Record<string, string>>({});
   const [pains, setPains] = useState<PainEntry[]>([]);
+  // Pain is asked on strength days only. The posture routine stays short and is saved as "pain not asked".
+  const asksPain = sessionId !== 'posture';
   const [effort, setEffort] = useState(3);
   const [notes, setNotes] = useState('');
   const [restSeconds, setRestSeconds] = useState(60);
@@ -160,8 +162,9 @@ export default function SessionScreen({ route, navigation }: Props) {
             date: startedAt.current,
             session: sessionId,
             sets: setLogs,
-            backPain: lowerBackScore(cleanPains(snapshot.pains)),
-            pains: cleanPains(snapshot.pains),
+            backPain: asksPain ? lowerBackScore(cleanPains(snapshot.pains)) : 0,
+            pains: asksPain ? cleanPains(snapshot.pains) : [],
+            ...(asksPain ? {} : { painRated: false }),
             effort: snapshot.effort,
             notes: snapshot.notes,
             finished: false,
@@ -170,7 +173,7 @@ export default function SessionScreen({ route, navigation }: Props) {
         })
         .catch(() => console.warn('Could not save workout progress'));
     },
-    [exercises, sessionId],
+    [exercises, sessionId, asksPain],
   );
 
   // Save shortly after any change. The latest state is also saved when the app goes to the background or the
@@ -278,7 +281,7 @@ export default function SessionScreen({ route, navigation }: Props) {
 
   const finish = async () => {
     if (doneSets === 0) return Alert.alert('Tick off at least one set first.');
-    const rated = cleanPains(pains);
+    const rated = asksPain ? cleanPains(pains) : [];
     finishing.current = true;
     // Let any save in progress finish first, then save the final version over it
     await saveQueue.current;
@@ -290,6 +293,7 @@ export default function SessionScreen({ route, navigation }: Props) {
       sets: toSetLogs(exercises, sets),
       backPain: lowerBackScore(rated),
       pains: rated,
+      ...(asksPain ? {} : { painRated: false }),
       effort,
       notes,
       finished: true,
@@ -395,9 +399,11 @@ export default function SessionScreen({ route, navigation }: Props) {
         <View style={[ui.card, { gap: space.lg }]}>
           <Text style={ui.h2}>Finish</Text>
           <Text style={ui.small}>
-            Ticked sets are already saved. Add any pain, rate your effort, then finish to complete the workout.
+            Ticked sets are already saved.{' '}
+            {asksPain ? 'Add any pain, rate your effort, then finish' : 'Rate your effort, then finish'} to complete the
+            workout.
           </Text>
-          <PainPicker value={pains} onChange={setPains} />
+          {asksPain && <PainPicker value={pains} onChange={setPains} />}
           <ScalePicker
             label="How hard was it?"
             min={1}

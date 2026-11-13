@@ -37,8 +37,8 @@ No accounts, no backend, no subscription. Your data stays on your phone.
 | **Settings** | AI key, your profile (goals, sitting hours, posture and back notes), your equipment, rest time between sets, program start date. |
 
 During a workout you can tick off sets, log weight and reps (prefilled from last time), use a rest timer you configure
-(60 s minimum), log any pain or discomfort by body area (neck, back, shoulder, knee and more, 0-10) and rate
-effort. Sets save as you tick them, so you can continue later the same day. Each exercise has form cues, a start-to-end photo demo and, where no photo
+(60 s minimum) and rate effort. On strength days you can also log any pain or discomfort by body area (neck, back,
+shoulder, knee and more, 0-10). Sets save as you tick them, so you can continue later the same day. Each exercise has form cues, a start-to-end photo demo and, where no photo
 fits, a link to a short YouTube demo.
 
 ### Build my plan with AI

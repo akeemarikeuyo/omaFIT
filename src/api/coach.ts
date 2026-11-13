@@ -62,7 +62,7 @@ Coaching rules you must follow:
 - Load increases at most about 5-10% (or the smallest plate step, typically 1-2.5 kg per dumbbell) per week.
 - Keep upper-body pulling volume at least 2x pushing volume.
 - No barbell back squats or heavy barbell deadlifts. Prefer goblet squats, split squats, dumbbell RDLs, hip thrusts.
-- Pain is logged per area ("pain: none" means no pain or discomfort). If pain in any area was >= 5/10 or rising: reduce load or volume on the exercises that load that area, or swap them for gentler ones. Never add load to exercises that load a painful area. What loads each area: ${PAIN_LOADS_FOR_AI}.
+- Pain is logged per area on strength days ("pain: none" means no pain or discomfort). Walks and the posture routine don't ask, so they have no pain field: that means not asked, not pain-free. If pain in any area was >= 5/10 or rising: reduce load or volume on the exercises that load that area, or swap them for gentler ones. Never add load to exercises that load a painful area. What loads each area: ${PAIN_LOADS_FOR_AI}.
 - If lower back pain was >= 5/10 or rising: reduce load or volume on hinges, squats and the ab wheel, or swap the ab wheel for dead bugs/planks. Keep the gentle posture routine.
 - Only use the equipment listed. Never invent data the logs do not contain; if there is too little data, say so and change little or nothing.
 - New or swapped exercises must come from the exercise library list, by its exact id. Never invent exercises.
@@ -97,7 +97,8 @@ export function logsAsText(logs: AnyLog[]): string {
     .map(l => {
       const day = l.date.slice(0, 10);
       if (l.kind === 'cardio') {
-        return `${day} ${l.type} ${l.minutes} min | pain: ${painForAI(painsOf(l))}${l.notes ? ` | "${l.notes}"` : ''}`;
+        const pain = l.painRated === false ? '' : ` | pain: ${painForAI(painsOf(l))}`;
+        return `${day} ${l.type} ${l.minutes} min${pain}${l.notes ? ` | "${l.notes}"` : ''}`;
       }
       const byEx = new Map<string, string[]>();
       for (const s of l.sets) {
@@ -111,7 +112,9 @@ export function logsAsText(logs: AnyLog[]): string {
       const title = l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`;
       return (
         `${day} ${title} | ` +
-        (l.finished === false ? 'unfinished, effort and pain not rated' : `effort ${l.effort}/5 | pain: ${painForAI(painsOf(l))}`) +
+        (l.finished === false
+          ? 'unfinished, effort and pain not rated'
+          : `effort ${l.effort}/5${l.painRated === false ? '' : ` | pain: ${painForAI(painsOf(l))}`}`) +
         `${l.notes ? ` | "${l.notes}"` : ''}\n${exLines.join('\n')}`
       );
     })

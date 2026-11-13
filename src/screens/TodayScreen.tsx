@@ -5,9 +5,8 @@ import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
-import { PainPicker } from '../components/PainPicker';
-import { Button, Pill, painColor } from '../components/ui';
-import { areaInfo, cleanPains, lowerBackScore, maxPain, painLabel, painsOf, painSummary, redFlagsFor } from '../data/pain';
+import { Button, Pill } from '../components/ui';
+import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkForWeek } from '../data/plan';
 import { dailyStats, encouragement, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
@@ -18,9 +17,9 @@ import {
   deleteLog,
   getLogs,
   getSettings,
+  isPainRated,
   isUnfinished,
   nextStrengthSession,
-  PainEntry,
   programWeek,
   unfinishedToday,
   WorkoutLog,
@@ -64,9 +63,9 @@ export default function TodayScreen() {
   const stats = summary(logs);
   const last7 = dailyStats(logs, 7);
 
-  // Places rated 6 or more in the last 3 finished logs
+  // Places rated 6 or more in the last 3 logs that asked about pain (strength days)
   const highPains = logs
-    .filter(l => !isUnfinished(l))
+    .filter(isPainRated)
     .slice(0, 3)
     .flatMap(painsOf)
     .filter(p => p.score >= 6)
@@ -221,15 +220,7 @@ export default function TodayScreen() {
               </Text>
               <Text style={ui.small}>{new Date(l.date).toDateString()} · long-press to delete</Text>
             </View>
-            {isUnfinished(l) ? (
-              <Text style={{ color: colors.muted, fontWeight: '700' }}>unfinished</Text>
-            ) : (
-              <Text
-                style={{ color: painColor(maxPain(painsOf(l))), fontWeight: '700', maxWidth: '45%', textAlign: 'right' }}
-              >
-                {painSummary(painsOf(l))}
-              </Text>
-            )}
+            {isUnfinished(l) && <Text style={{ color: colors.muted, fontWeight: '700' }}>unfinished</Text>}
           </Pressable>
         ))}
       </KeyboardAwareScrollView>
@@ -240,17 +231,13 @@ export default function TodayScreen() {
 function WalkForm({ onDone }: { onDone: () => void }) {
   const [type, setType] = useState<CardioLog['type']>('walk');
   const [minutes, setMinutes] = useState('30');
-  const [pains, setPains] = useState<PainEntry[]>([]);
   const [notes, setNotes] = useState('');
 
   const save = async () => {
     const m = Number(minutes);
     if (!m || m <= 0) return Alert.alert('Enter the minutes');
-    const rated = cleanPains(pains);
-    await addLog({ kind: 'cardio', date: new Date().toISOString(), type, minutes: m, backPain: lowerBackScore(rated), pains: rated, notes });
-    if (maxPain(rated) >= 7) {
-      Alert.alert('Saved. Take it easy.', `That is a high pain score. ${redFlagsFor(rated.filter(p => p.score >= 7))}`);
-    }
+    // Pain is asked on strength days only, so a walk is saved as "not asked", never as "no pain"
+    await addLog({ kind: 'cardio', date: new Date().toISOString(), type, minutes: m, backPain: 0, painRated: false, notes });
     onDone();
   };
 
@@ -269,7 +256,6 @@ function WalkForm({ onDone }: { onDone: () => void }) {
         placeholder="Minutes"
         placeholderTextColor={colors.muted}
       />
-      <PainPicker value={pains} onChange={setPains} />
       <TextInput
         style={ui.input}
         value={notes}
