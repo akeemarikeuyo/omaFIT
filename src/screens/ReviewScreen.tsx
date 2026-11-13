@@ -8,7 +8,9 @@ import { Button, Pill } from '../components/ui';
 import { exerciseLabel } from '../data/effective';
 import { RootStackParamList } from '../navigation';
 import {
+  getProposals,
   getReviews,
+  PlanProposal,
   markReviewApplied,
   mergeOverrides,
   Overrides,
@@ -37,7 +39,12 @@ export default function ReviewScreen() {
   const [rejected, setRejected] = useState<{ exerciseId: string; why: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async () => setReviews(await getReviews()), []);
+  const [plan, setPlan] = useState<PlanProposal | null>(null);
+
+  const load = useCallback(async () => {
+    setReviews(await getReviews());
+    setPlan((await getProposals())[0] ?? null);
+  }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const run = async () => {
@@ -71,7 +78,7 @@ export default function ReviewScreen() {
   const reset = () =>
     Alert.alert('Reset plan?', 'Removes all applied review and plan-builder changes and returns to the original plan. Your logs are kept.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Reset', style: 'destructive', onPress: () => resetPlan() },
+      { text: 'Reset', style: 'destructive', onPress: async () => { await resetPlan(); load(); } },
     ]);
 
   const latest = reviews[0];
@@ -80,11 +87,26 @@ export default function ReviewScreen() {
     <SafeAreaView style={ui.screen} edges={['top']}>
       <ScrollView contentContainerStyle={ui.content}>
         <Pressable onPress={() => nav.navigate('PlanBuilder')} style={[ui.card, { borderColor: colors.accent }]}>
-          <Text style={ui.h2}>Build my plan with AI</Text>
-          <Text style={ui.muted}>
-            Add posture photos and your equipment, and your AI coach tailors your posture routine and strength days.
-          </Text>
-          <Text style={{ color: colors.accent, fontWeight: '700' }}>Start →</Text>
+          {plan ? (
+            <>
+              <View style={[ui.row, { justifyContent: 'space-between' }]}>
+                <Text style={ui.h2}>Your AI plan</Text>
+                {plan.applied ? <Pill text="Applied" color={colors.good} /> : <Pill text="Not applied" />}
+              </View>
+              <Text style={ui.muted}>
+                Built {new Date(plan.date).toDateString()}. See your coach's feedback, apply it, or build again.
+              </Text>
+              <Text style={{ color: colors.accent, fontWeight: '700' }}>View plan →</Text>
+            </>
+          ) : (
+            <>
+              <Text style={ui.h2}>Build my plan with AI</Text>
+              <Text style={ui.muted}>
+                Add posture photos and your equipment, and your AI coach tailors your posture routine and strength days.
+              </Text>
+              <Text style={{ color: colors.accent, fontWeight: '700' }}>Start →</Text>
+            </>
+          )}
         </Pressable>
 
         <Text style={ui.h1}>Weekly review</Text>

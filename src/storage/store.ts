@@ -290,6 +290,9 @@ export async function removeAdditions(ids: string[]) {
 export async function resetPlan() {
   await resetOverrides();
   await writeJson(ADDITIONS, []);
+  // Nothing is applied any more, so reviews and AI plans can be applied again
+  await writeJson(REVIEWS, (await getReviews()).map(r => ({ ...r, applied: false })));
+  await writeJson(PROPOSALS, (await getProposals()).map(p => ({ ...p, applied: false })));
 }
 
 // ---------- posture check (findings only; photos are never stored) ----------

@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { findDemo, imageUrls } from '../api/demos';
 import { applyProposal, buildPlan, PhotoView, PosturePhoto } from '../api/planBuilder';
@@ -50,6 +50,24 @@ export default function PlanBuilderScreen({ navigation }: Props) {
   const [photos, setPhotos] = useState<Partial<Record<PhotoView, { uri: string; base64: string }>>>({});
   const [proposal, setProposal] = useState<PlanProposal | null>(null);
   const [loading, setLoading] = useState(false);
+  // With a plan already built, the screen shows only the AI's feedback until the user chooses to build again
+  const [buildingAgain, setBuildingAgain] = useState(false);
+  const viewing = !!proposal && !buildingAgain;
+
+  useEffect(() => {
+    navigation.setOptions({ title: viewing ? 'Your AI plan' : 'Build my plan' });
+  }, [viewing, navigation]);
+
+  const buildAgain = () =>
+    Alert.alert(
+      'Build a new plan?',
+      'You start again from your details and photos. The new result replaces this feedback. Changes you already applied ' +
+        'stay in your plan ("Reset plan to original" on Review undoes them).',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Build again', onPress: () => setBuildingAgain(true) },
+      ],
+    );
 
   useFocusEffect(
     useCallback(() => {
@@ -74,6 +92,7 @@ export default function PlanBuilderScreen({ navigation }: Props) {
       setLoading(true);
       try {
         setProposal(await buildPlan(send));
+        setBuildingAgain(false);
         setPhotos({}); // photos are only kept for this one request
       } catch (e) {
         Alert.alert('Could not build a plan', e instanceof Error ? e.message : String(e));
@@ -113,83 +132,90 @@ export default function PlanBuilderScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-      <Text style={ui.muted}>
-        Your AI coach reads your profile, equipment, recent logs and (optionally) posture photos, then suggests changes to
-        your posture routine and strength days. It only picks exercises from the built-in library, so every one has a
-        demo. Nothing changes until you tap Apply.
-      </Text>
-
-      <View style={ui.card}>
-        <Text style={ui.h2}>1. You and your equipment</Text>
-        <Text style={ui.body}>Profile: {profileFilled ? `${profileFilled} of 5 details filled in` : 'not filled in yet'}</Text>
-        <Text style={ui.body}>Equipment: {equipmentText}</Text>
-        {!!settings?.equipmentNotes && <Text style={ui.small}>{settings.equipmentNotes}</Text>}
-        <Button title="Edit in Settings" kind="secondary" onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })} />
-      </View>
-
-      <View style={ui.card}>
-        <Text style={ui.h2}>2. Posture photos (optional)</Text>
-        <Text style={ui.small}>
-          Stand relaxed, as you normally do. Full body in frame, fitted clothes, phone at hip height about 2-3 m away,
-          plain background. Side view = your side to the camera.
-        </Text>
-        {VIEWS.map(v => {
-          const ph = photos[v.view];
-          return (
-            <View key={v.view} style={[ui.row, { alignItems: 'center' }]}>
-              <View
-                style={{
-                  width: 54,
-                  height: 72,
-                  borderRadius: 8,
-                  backgroundColor: colors.cardAlt,
-                  overflow: 'hidden',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {ph ? (
-                  <Image source={{ uri: ph.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                ) : (
-                  <Text style={ui.small}>none</Text>
-                )}
-              </View>
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={ui.h3}>{v.label}</Text>
-                <View style={ui.row}>
-                  <Button title="Camera" kind="secondary" onPress={() => addPhoto(v.view, true)} style={{ paddingVertical: 8 }} />
-                  <Button title="Gallery" kind="secondary" onPress={() => addPhoto(v.view, false)} style={{ paddingVertical: 8 }} />
-                  {ph && (
-                    <Button
-                      title="✕"
-                      kind="secondary"
-                      onPress={() => setPhotos(cur => ({ ...cur, [v.view]: undefined }))}
-                      style={{ paddingVertical: 8 }}
-                    />
-                  )}
-                </View>
-              </View>
-            </View>
-          );
-        })}
-        <Text style={ui.small}>
-          Photos are shrunk on your phone, sent only to your AI provider ({provider?.label ?? 'not set'}) for this one
-          request, and not saved by omaFIT. Only the written findings are kept. The AI describes what it sees; it can't
-          diagnose anything.
-        </Text>
-        {!!provider?.photoWarning && <Text style={[ui.small, { color: colors.warn }]}>{provider.photoWarning}</Text>}
-        {!!settings && !modelReadsPhotos(settings) && (
-          <Text style={[ui.small, { color: colors.warn }]}>
-            Your AI model ({currentModel(settings)}) can't read photos. Pick one that reads images in Settings to use
-            them.
+      {!viewing && (
+        <>
+          <Text style={ui.muted}>
+            Your AI coach reads your profile, equipment, recent logs and (optionally) posture photos, then suggests changes to
+            your posture routine and strength days. It only picks exercises from the built-in library, so every one has a
+            demo. Nothing changes until you tap Apply.
           </Text>
-        )}
-      </View>
 
-      <Button title="Analyse and build my plan" onPress={run} loading={loading} />
-      {loading && <Text style={[ui.small, { textAlign: 'center' }]}>This can take up to a minute.</Text>}
+          <View style={ui.card}>
+            <Text style={ui.h2}>1. You and your equipment</Text>
+            <Text style={ui.body}>Profile: {profileFilled ? `${profileFilled} of 5 details filled in` : 'not filled in yet'}</Text>
+            <Text style={ui.body}>Equipment: {equipmentText}</Text>
+            {!!settings?.equipmentNotes && <Text style={ui.small}>{settings.equipmentNotes}</Text>}
+            <Button title="Edit in Settings" kind="secondary" onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })} />
+          </View>
 
-      {proposal && (
+          <View style={ui.card}>
+            <Text style={ui.h2}>2. Posture photos (optional)</Text>
+            <Text style={ui.small}>
+              Stand relaxed, as you normally do. Full body in frame, fitted clothes, phone at hip height about 2-3 m away,
+              plain background. Side view = your side to the camera.
+            </Text>
+            {VIEWS.map(v => {
+              const ph = photos[v.view];
+              return (
+                <View key={v.view} style={[ui.row, { alignItems: 'center' }]}>
+                  <View
+                    style={{
+                      width: 54,
+                      height: 72,
+                      borderRadius: 8,
+                      backgroundColor: colors.cardAlt,
+                      overflow: 'hidden',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {ph ? (
+                      <Image source={{ uri: ph.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    ) : (
+                      <Text style={ui.small}>none</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={ui.h3}>{v.label}</Text>
+                    <View style={ui.row}>
+                      <Button title="Camera" kind="secondary" onPress={() => addPhoto(v.view, true)} style={{ paddingVertical: 8 }} />
+                      <Button title="Gallery" kind="secondary" onPress={() => addPhoto(v.view, false)} style={{ paddingVertical: 8 }} />
+                      {ph && (
+                        <Button
+                          title="✕"
+                          kind="secondary"
+                          onPress={() => setPhotos(cur => ({ ...cur, [v.view]: undefined }))}
+                          style={{ paddingVertical: 8 }}
+                        />
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+            <Text style={ui.small}>
+              Photos are shrunk on your phone, sent only to your AI provider ({provider?.label ?? 'not set'}) for this one
+              request, and not saved by omaFIT. Only the written findings are kept. The AI describes what it sees; it can't
+              diagnose anything.
+            </Text>
+            {!!provider?.photoWarning && <Text style={[ui.small, { color: colors.warn }]}>{provider.photoWarning}</Text>}
+            {!!settings && !modelReadsPhotos(settings) && (
+              <Text style={[ui.small, { color: colors.warn }]}>
+                Your AI model ({currentModel(settings)}) can't read photos. Pick one that reads images in Settings to use
+                them.
+              </Text>
+            )}
+          </View>
+
+          <Button title="Analyse and build my plan" onPress={run} loading={loading} />
+          {loading && <Text style={[ui.small, { textAlign: 'center' }]}>This can take up to a minute.</Text>}
+          {buildingAgain && !loading && (
+            <Button title="Cancel, keep my current plan" kind="secondary" onPress={() => setBuildingAgain(false)} />
+          )}
+        </>
+      )}
+
+      {viewing && proposal && (
         <View style={[ui.card, { borderColor: proposal.applied ? colors.border : colors.accent }]}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
             <Text style={ui.small}>{new Date(proposal.date).toDateString()}</Text>
@@ -249,6 +275,7 @@ export default function PlanBuilderScreen({ navigation }: Props) {
           )}
         </View>
       )}
+      {viewing && <Button title="Build again" kind="secondary" onPress={buildAgain} />}
     </ScrollView>
   );
 }
