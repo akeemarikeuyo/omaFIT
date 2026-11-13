@@ -19,6 +19,7 @@ import ReviewScreen from './src/screens/ReviewScreen';
 import SessionScreen from './src/screens/SessionScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TodayScreen from './src/screens/TodayScreen';
+import WalkScreen from './src/screens/WalkScreen';
 import { colors } from './src/theme';
 
 // Keep the native splash up until our own logo screen has drawn, so there's no flash between them
@@ -136,6 +137,7 @@ export default function App() {
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
           <Stack.Screen name="Session" component={SessionScreen} />
           <Stack.Screen name="Exercise" component={ExerciseScreen} />
+          <Stack.Screen name="Walk" component={WalkScreen} options={{ title: 'Walk / run' }} />
           <Stack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'Build my plan' }} />
         </Stack.Navigator>
       </NavigationContainer>

@@ -71,7 +71,7 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [sets, setSets] = useState<Record<string, SetState[]>>({});
   const [lastText, setLastText] = useState<Record<string, string>>({});
   const [pains, setPains] = useState<PainEntry[]>([]);
-  // Pain is asked on strength days only. The posture routine stays short and is saved as "pain not asked".
+  // Pain is asked on strength days (and walks). The posture routine stays short and is saved as "pain not asked".
   const asksPain = sessionId !== 'posture';
   const [effort, setEffort] = useState(3);
   const [notes, setNotes] = useState('');

@@ -1,19 +1,17 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { Button, Pill } from '../components/ui';
 import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
-import { dayKind, SESSIONS, SessionId, walkForWeek } from '../data/plan';
+import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, encouragement, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
 import {
-  addLog,
   AnyLog,
-  CardioLog,
   deleteLog,
   getLogs,
   getSettings,
@@ -33,7 +31,6 @@ export default function TodayScreen() {
   const [week, setWeek] = useState(1);
   const [next, setNext] = useState<'A' | 'B'>('A');
   const [logs, setLogs] = useState<AnyLog[]>([]);
-  const [showWalk, setShowWalk] = useState(false);
   const [open, setOpen] = useState<WorkoutLog | null>(null);
 
   const load = useCallback(async () => {
@@ -52,7 +49,7 @@ export default function TodayScreen() {
 
   const today = new Date();
   const kind = dayKind(today);
-  const walk = walkForWeek(week);
+  const walk = walkToday(today, week);
   const todayStr = today.toISOString().slice(0, 10);
   // "Done" means finished. An unfinished workout shows as Continue instead.
   const doneToday = logs.filter(l => l.date.slice(0, 10) === todayStr && !isUnfinished(l));
@@ -172,26 +169,18 @@ export default function TodayScreen() {
         )}
 
         {(kind === 'walk' || kind === 'longwalk' || kind === 'strength') && (
-          <View style={ui.card}>
+          <Pressable
+            onPress={() => nav.navigate('Walk')}
+            style={[ui.card, kind !== 'strength' && { borderColor: colors.accent }]}
+          >
             <View style={[ui.row, { justifyContent: 'space-between' }]}>
-              <Text style={ui.h2}>{kind === 'strength' ? 'Walk' : kind === 'longwalk' ? 'Long walk' : 'Walk / run'}</Text>
-              {cardioDone && <Pill text="Done" color={colors.good} />}
+              <Text style={ui.h2}>{walk.title}</Text>
+              {cardioDone ? <Pill text="Done" color={colors.good} /> : kind !== 'strength' && <Pill text="Today" />}
             </View>
-            <Text style={ui.body}>
-              {kind === 'strength' ? '20 min easy walk' : kind === 'longwalk' ? walk.saturday : walk.weekday}
-            </Text>
+            <Text style={ui.muted}>{walk.target}</Text>
             <Text style={ui.small}>Weeks {walk.weeks} of the plan. Talking pace. Running shoes, not slides.</Text>
-            {showWalk ? (
-              <WalkForm
-                onDone={async () => {
-                  setShowWalk(false);
-                  load();
-                }}
-              />
-            ) : (
-              <Button title="Log walk / run" kind="secondary" onPress={() => setShowWalk(true)} />
-            )}
-          </View>
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>Start →</Text>
+          </Pressable>
         )}
 
         {kind === 'rest' && (
@@ -207,6 +196,7 @@ export default function TodayScreen() {
             {(['A', 'B'] as const).map(id => (
               <Button key={id} title={SESSIONS[id].title} kind="secondary" onPress={() => start(id)} />
             ))}
+            <Button title="Walk / run" kind="secondary" onPress={() => nav.navigate('Walk')} />
           </View>
         </View>
 
@@ -228,42 +218,3 @@ export default function TodayScreen() {
   );
 }
 
-function WalkForm({ onDone }: { onDone: () => void }) {
-  const [type, setType] = useState<CardioLog['type']>('walk');
-  const [minutes, setMinutes] = useState('30');
-  const [notes, setNotes] = useState('');
-
-  const save = async () => {
-    const m = Number(minutes);
-    if (!m || m <= 0) return Alert.alert('Enter the minutes');
-    // Pain is asked on strength days only, so a walk is saved as "not asked", never as "no pain"
-    await addLog({ kind: 'cardio', date: new Date().toISOString(), type, minutes: m, backPain: 0, painRated: false, notes });
-    onDone();
-  };
-
-  return (
-    <View style={{ gap: space.md }}>
-      <View style={ui.row}>
-        {(['walk', 'run-walk', 'run'] as const).map(t => (
-          <Button key={t} title={t} kind={t === type ? 'primary' : 'secondary'} onPress={() => setType(t)} />
-        ))}
-      </View>
-      <TextInput
-        style={ui.input}
-        value={minutes}
-        onChangeText={setMinutes}
-        keyboardType="number-pad"
-        placeholder="Minutes"
-        placeholderTextColor={colors.muted}
-      />
-      <TextInput
-        style={ui.input}
-        value={notes}
-        onChangeText={setNotes}
-        placeholder="Notes (optional)"
-        placeholderTextColor={colors.muted}
-      />
-      <Button title="Save" onPress={save} />
-    </View>
-  );
-}

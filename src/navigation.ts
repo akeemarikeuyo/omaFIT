@@ -5,6 +5,7 @@ export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   Session: { sessionId: SessionId };
   Exercise: { sessionId: SessionId; exerciseId: string };
+  Walk: undefined;
   PlanBuilder: undefined;
 };
 

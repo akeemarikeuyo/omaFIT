@@ -148,8 +148,8 @@ export interface WorkoutLog {
 export const isUnfinished = (l: AnyLog): l is WorkoutLog => l.kind === 'session' && l.finished === false;
 
 /**
- * Whether this log has a pain rating. Pain is asked on strength days only: walks and the posture routine are saved
- * with `painRated: false`, so their empty pain list never counts as "no pain". Older logs always asked.
+ * Whether this log has a pain rating. Strength days and walks/runs ask; the posture routine doesn't and is saved with
+ * `painRated: false`, so its empty pain list never counts as "no pain". Older logs always asked.
  */
 export const isPainRated = (l: AnyLog) => !isUnfinished(l) && l.painRated !== false;
 export interface CardioLog {
@@ -161,7 +161,7 @@ export interface CardioLog {
   /** Lower back score, as on WorkoutLog. Read pain with painsOf(). */
   backPain: number;
   pains?: PainEntry[];
-  /** false = pain wasn't asked (walks no longer ask). Missing = asked (older logs). */
+  /** false = pain wasn't asked (only walks logged by one test build). Missing = asked. */
   painRated?: boolean;
   notes: string;
 }

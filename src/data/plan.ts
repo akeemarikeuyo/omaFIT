@@ -225,6 +225,35 @@ export function walkForWeek(programWeek: number) {
   return WALK_PLAN[4];
 }
 
+export type CardioType = 'walk' | 'run-walk' | 'run';
+
+export interface WalkToday {
+  title: string;
+  /** What the plan asks for today */
+  target: string;
+  /** Plan weeks this target belongs to, e.g. "3-4" */
+  weeks: string;
+  /** Pre-filled in the walk log */
+  type: CardioType;
+  minutes: number;
+}
+
+/** Today's walk or run from the plan: an easy walk after strength days, the week's walk/run, or Saturday's long walk. */
+export function walkToday(date: Date, programWeek: number): WalkToday {
+  const kind = dayKind(date);
+  const plan = walkForWeek(programWeek);
+  const target =
+    kind === 'strength' ? '20 min easy walk' : kind === 'longwalk' ? plan.saturday : kind === 'walk' ? plan.weekday : 'Easy walk, any length';
+  const title = kind === 'strength' ? 'Walk' : kind === 'longwalk' ? 'Long walk' : kind === 'walk' ? 'Walk / run' : 'Easy walk';
+  // A run only when the target leads with it ("Easy continuous jog…"), not "Walk 60 min or easy 20 min jog"
+  const type: CardioType = /run-walk/i.test(target) ? 'run-walk' : /^(easy\s+)?(continuous\s+)?(jog|run)/i.test(target) ? 'run' : 'walk';
+  // "1 min jog / 2 min walk x 8" = 8 rounds of 3 min; otherwise the first "N min"
+  const rounds = target.match(/(\d+) min \w+ \/ (\d+) min \w+ x (\d+)/);
+  const firstMinutes = Number(target.match(/(\d+)(?:-\d+)? min/)?.[1] ?? 30);
+  const minutes = rounds ? (Number(rounds[1]) + Number(rounds[2])) * Number(rounds[3]) : firstMinutes;
+  return { title, target, weeks: plan.weeks, type, minutes };
+}
+
 /** Back and neck red flags */
 export const RED_FLAGS =
   'Stop and see a doctor or physiotherapist if you get pain spreading down a leg or arm, numbness or tingling, ' +
