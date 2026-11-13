@@ -61,8 +61,10 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
   `addAdditions`). `plan.ts` is the baseline, and "Reset plan" (`resetPlan`) must keep working.
 - **Posture photos are never stored by the app.** They're resized on the phone, sent once to the user's AI provider
   and dropped. Only the text findings are saved (`posture_assessment_v1`). The AI describes, never diagnoses.
-- **Conservative coaching rules:** no barbell back squats or heavy barbell deadlifts, pull volume ≥ 2x push, back pain
-  ≥ 5 means reduce load, and red flags mean see a doctor or physio. The AI can't see form, so never claim it can (this
+- **Conservative coaching rules:** no barbell back squats or heavy barbell deadlifts, pull volume ≥ 2x push, pain
+  ≥ 5 in any area means reduce load on what loads that area, and red flags mean see a doctor or physio. Pain is logged
+  per area (`PainEntry`, `src/data/pain.ts`): read it with `painsOf()`, never `backPain` directly (it's the lower back
+  score, kept for old logs). The AI can't see form, so never claim it can (this
   still applies once photo upload exists).
 - **No personal data in code.** User details come from the Settings profile (`Settings.profile`). Prompts and UI text
   refer to "the user"/"you" and use they/them, never a hard-coded name or pronoun.

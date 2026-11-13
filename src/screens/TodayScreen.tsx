@@ -5,8 +5,10 @@ import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
-import { Button, Pill, ScalePicker, painColor } from '../components/ui';
-import { dayKind, RED_FLAGS, SESSIONS, SessionId, walkForWeek } from '../data/plan';
+import { PainPicker } from '../components/PainPicker';
+import { Button, Pill, painColor } from '../components/ui';
+import { areaInfo, cleanPains, lowerBackScore, maxPain, painLabel, painsOf, painSummary, redFlagsFor } from '../data/pain';
+import { dayKind, SESSIONS, SessionId, walkForWeek } from '../data/plan';
 import { dailyStats, encouragement, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
 import {
@@ -18,6 +20,7 @@ import {
   getSettings,
   isUnfinished,
   nextStrengthSession,
+  PainEntry,
   programWeek,
   unfinishedToday,
   WorkoutLog,
@@ -61,9 +64,17 @@ export default function TodayScreen() {
   const stats = summary(logs);
   const last7 = dailyStats(logs, 7);
 
-  const recentPain = logs.filter(l => !isUnfinished(l)).slice(0, 3).map(l => l.backPain);
+  // Places rated 6 or more in the last 3 finished logs
+  const highPains = logs
+    .filter(l => !isUnfinished(l))
+    .slice(0, 3)
+    .flatMap(painsOf)
+    .filter(p => p.score >= 6)
+    .filter((p, i, all) => all.findIndex(q => painLabel(q) === painLabel(p)) === i);
+  const highSpine = highPains.some(p => areaInfo(p.area).spine);
+  const highJoints = highPains.filter(p => !areaInfo(p.area).spine);
   const openDone = open ? open.sets.filter(s => s.done).length : 0;
-  const painHigh = recentPain.length > 0 && Math.max(...recentPain) >= 6;
+  const painHigh = highPains.length > 0;
 
   const start = (id: SessionId) => nav.navigate('Session', { sessionId: id });
 
@@ -126,9 +137,16 @@ export default function TodayScreen() {
 
         {painHigh && (
           <View style={[ui.card, { borderColor: colors.warn }]}>
-            <Text style={[ui.h3, { color: colors.warn }]}>Back pain has been high recently</Text>
+            <Text style={[ui.h3, { color: colors.warn }]}>
+              Pain has been high recently: {highPains.map(p => painLabel(p).toLowerCase()).join(', ')}
+            </Text>
             <Text style={ui.muted}>
-              Keep today gentle: posture routine items 1, 6, 7, 8 and 9 plus a walk. {RED_FLAGS}
+              {highSpine ? 'Keep today gentle: posture routine items 1, 6, 7, 8 and 9 plus a walk. ' : ''}
+              {highJoints.length
+                ? `Go easy on what loads the ${highJoints.map(p => painLabel(p).toLowerCase()).join(' and ')}: ` +
+                  `${[...new Set(highJoints.map(p => areaInfo(p.area).loads))].join('; ')}. `
+                : ''}
+              {redFlagsFor(highPains)}
             </Text>
           </View>
         )}
@@ -206,7 +224,11 @@ export default function TodayScreen() {
             {isUnfinished(l) ? (
               <Text style={{ color: colors.muted, fontWeight: '700' }}>unfinished</Text>
             ) : (
-              <Text style={{ color: painColor(l.backPain), fontWeight: '700' }}>back {l.backPain}/10</Text>
+              <Text
+                style={{ color: painColor(maxPain(painsOf(l))), fontWeight: '700', maxWidth: '45%', textAlign: 'right' }}
+              >
+                {painSummary(painsOf(l))}
+              </Text>
             )}
           </Pressable>
         ))}
@@ -218,13 +240,17 @@ export default function TodayScreen() {
 function WalkForm({ onDone }: { onDone: () => void }) {
   const [type, setType] = useState<CardioLog['type']>('walk');
   const [minutes, setMinutes] = useState('30');
-  const [pain, setPain] = useState(0);
+  const [pains, setPains] = useState<PainEntry[]>([]);
   const [notes, setNotes] = useState('');
 
   const save = async () => {
     const m = Number(minutes);
     if (!m || m <= 0) return Alert.alert('Enter the minutes');
-    await addLog({ kind: 'cardio', date: new Date().toISOString(), type, minutes: m, backPain: pain, notes });
+    const rated = cleanPains(pains);
+    await addLog({ kind: 'cardio', date: new Date().toISOString(), type, minutes: m, backPain: lowerBackScore(rated), pains: rated, notes });
+    if (maxPain(rated) >= 7) {
+      Alert.alert('Saved. Take it easy.', `That is a high pain score. ${redFlagsFor(rated.filter(p => p.score >= 7))}`);
+    }
     onDone();
   };
 
@@ -243,7 +269,7 @@ function WalkForm({ onDone }: { onDone: () => void }) {
         placeholder="Minutes"
         placeholderTextColor={colors.muted}
       />
-      <ScalePicker label="Back pain" min={0} max={10} value={pain} onChange={setPain} lowLabel="none" highLabel="worst" colorFor={painColor} />
+      <PainPicker value={pains} onChange={setPains} />
       <TextInput
         style={ui.input}
         value={notes}

@@ -106,14 +106,29 @@ export interface SetLog {
   weightKg?: number;
   done: boolean;
 }
+/** Where it hurts. See src/data/pain.ts for labels and which areas have a side. */
+export type PainArea = 'neck' | 'upper-back' | 'lower-back' | 'shoulder' | 'elbow' | 'wrist' | 'hip' | 'knee' | 'ankle' | 'other';
+export type PainSide = 'left' | 'right' | 'both';
+/** Pain or discomfort in one place, 1 (slight) to 10 (worst). */
+export interface PainEntry {
+  area: PainArea;
+  /** Joints only */
+  side?: PainSide;
+  score: number;
+  /** For "other": a few words, e.g. "right calf" */
+  note?: string;
+}
+
 export interface WorkoutLog {
   id: string;
   kind: 'session';
   date: string; // ISO datetime
   session: SessionId;
   sets: SetLog[];
-  /** 0 = no back pain, 10 = worst */
+  /** Lower back score (0 = none). Kept so older logs and code still work: read pain with painsOf() instead. */
   backPain: number;
+  /** Pain or discomfort by area. Missing on logs from before this field: painsOf() falls back to backPain. */
+  pains?: PainEntry[];
   /** 1 = very easy, 5 = could not do one more rep */
   effort: number;
   notes: string;
@@ -124,7 +139,7 @@ export interface WorkoutLog {
   finished?: boolean;
 }
 
-/** A workout saved as it goes and not finished yet. Its back pain and effort are not ratings yet. */
+/** A workout saved as it goes and not finished yet. Its pain and effort are not ratings yet. */
 export const isUnfinished = (l: AnyLog): l is WorkoutLog => l.kind === 'session' && l.finished === false;
 export interface CardioLog {
   id: string;
@@ -132,7 +147,9 @@ export interface CardioLog {
   date: string;
   type: 'walk' | 'run-walk' | 'run';
   minutes: number;
+  /** Lower back score, as on WorkoutLog. Read pain with painsOf(). */
   backPain: number;
+  pains?: PainEntry[];
   notes: string;
 }
 export type AnyLog = WorkoutLog | CardioLog;

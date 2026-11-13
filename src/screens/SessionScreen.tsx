@@ -3,9 +3,11 @@ import { useKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, Text, TextInput, Vibration, View } from 'react-native';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
-import { Button, ScalePicker, painColor } from '../components/ui';
+import { PainPicker } from '../components/PainPicker';
+import { Button, ScalePicker } from '../components/ui';
+import { cleanPains, lowerBackScore, maxPain, painsOf, redFlagsFor } from '../data/pain';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
-import { RED_FLAGS, Session } from '../data/plan';
+import { Session } from '../data/plan';
 import { RootStackParamList } from '../navigation';
 import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert } from '../session/restAlert';
 import {
@@ -13,6 +15,7 @@ import {
   getSettings,
   lastPerformance,
   newLogId,
+  PainEntry,
   restSecondsFor,
   saveWorkout,
   SetLog,
@@ -67,7 +70,7 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [exercises, setExercises] = useState<EffectiveExercise[]>([]);
   const [sets, setSets] = useState<Record<string, SetState[]>>({});
   const [lastText, setLastText] = useState<Record<string, string>>({});
-  const [pain, setPain] = useState(0);
+  const [pains, setPains] = useState<PainEntry[]>([]);
   const [effort, setEffort] = useState(3);
   const [notes, setNotes] = useState('');
   const [restSeconds, setRestSeconds] = useState(60);
@@ -124,7 +127,7 @@ export default function SessionScreen({ route, navigation }: Props) {
       if (open) {
         logId.current = open.id;
         startedAt.current = open.date;
-        setPain(open.backPain);
+        setPains(painsOf(open));
         setEffort(open.effort);
         setNotes(open.notes);
         setResumed(true);
@@ -137,7 +140,7 @@ export default function SessionScreen({ route, navigation }: Props) {
 
   /** Saves the workout so far as unfinished. Nothing is saved until a set is ticked; untick them all and it's removed. */
   const saveProgress = useCallback(
-    (snapshot: { sets: Record<string, SetState[]>; pain: number; effort: number; notes: string }) => {
+    (snapshot: { sets: Record<string, SetState[]>; pains: PainEntry[]; effort: number; notes: string }) => {
       if (finishing.current) return;
       const setLogs = toSetLogs(exercises, snapshot.sets);
       const anyDone = setLogs.some(s => s.done);
@@ -157,7 +160,8 @@ export default function SessionScreen({ route, navigation }: Props) {
             date: startedAt.current,
             session: sessionId,
             sets: setLogs,
-            backPain: snapshot.pain,
+            backPain: lowerBackScore(cleanPains(snapshot.pains)),
+            pains: cleanPains(snapshot.pains),
             effort: snapshot.effort,
             notes: snapshot.notes,
             finished: false,
@@ -171,13 +175,13 @@ export default function SessionScreen({ route, navigation }: Props) {
 
   // Save shortly after any change. The latest state is also saved when the app goes to the background or the
   // session closes, so nothing ticked is lost.
-  const latest = useRef({ sets, pain, effort, notes });
+  const latest = useRef({ sets, pains, effort, notes });
   useEffect(() => {
-    latest.current = { sets, pain, effort, notes };
+    latest.current = { sets, pains, effort, notes };
     if (!loaded) return;
     const t = setTimeout(() => saveProgress(latest.current), SAVE_DELAY_MS);
     return () => clearTimeout(t);
-  }, [loaded, sets, pain, effort, notes, saveProgress]);
+  }, [loaded, sets, pains, effort, notes, saveProgress]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -274,6 +278,7 @@ export default function SessionScreen({ route, navigation }: Props) {
 
   const finish = async () => {
     if (doneSets === 0) return Alert.alert('Tick off at least one set first.');
+    const rated = cleanPains(pains);
     finishing.current = true;
     // Let any save in progress finish first, then save the final version over it
     await saveQueue.current;
@@ -283,13 +288,14 @@ export default function SessionScreen({ route, navigation }: Props) {
       date: startedAt.current ?? new Date().toISOString(),
       session: sessionId,
       sets: toSetLogs(exercises, sets),
-      backPain: pain,
+      backPain: lowerBackScore(rated),
+      pains: rated,
       effort,
       notes,
       finished: true,
     });
-    if (pain >= 7) {
-      Alert.alert('Saved. Take it easy.', `That is a high back pain score. ${RED_FLAGS}`);
+    if (maxPain(rated) >= 7) {
+      Alert.alert('Saved. Take it easy.', `That is a high pain score. ${redFlagsFor(rated.filter(p => p.score >= 7))}`);
     }
     navigation.goBack();
   };
@@ -389,18 +395,9 @@ export default function SessionScreen({ route, navigation }: Props) {
         <View style={[ui.card, { gap: space.lg }]}>
           <Text style={ui.h2}>Finish</Text>
           <Text style={ui.small}>
-            Ticked sets are already saved. Rate your back and effort, then finish to complete the workout.
+            Ticked sets are already saved. Add any pain, rate your effort, then finish to complete the workout.
           </Text>
-          <ScalePicker
-            label="Lower back pain during/after"
-            min={0}
-            max={10}
-            value={pain}
-            onChange={setPain}
-            lowLabel="none"
-            highLabel="worst"
-            colorFor={painColor}
-          />
+          <PainPicker value={pains} onChange={setPains} />
           <ScalePicker
             label="How hard was it?"
             min={1}

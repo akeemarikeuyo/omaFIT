@@ -225,6 +225,15 @@ export function walkForWeek(programWeek: number) {
   return WALK_PLAN[4];
 }
 
+/** Back and neck red flags */
 export const RED_FLAGS =
-  'Stop and see a doctor or physiotherapist if you get pain spreading down a leg, numbness or tingling, ' +
-  'leg weakness, pain worse at night or not improving after 4-6 weeks, or any bladder or bowel changes.';
+  'Stop and see a doctor or physiotherapist if you get pain spreading down a leg or arm, numbness or tingling, ' +
+  'weakness in a leg or arm, pain worse at night or not improving after 4-6 weeks, or any bladder or bowel changes.';
+
+/** Joint red flags (shoulder, elbow, wrist, hip, knee, ankle and other areas) */
+export const JOINT_RED_FLAGS =
+  'Stop and see a doctor or physiotherapist if a joint swells, locks or gives way, you can’t put weight on it or ' +
+  'move it fully, the pain started with a fall, twist or pop, or it isn’t settling after 2 weeks.';
+
+/** Shown wherever pain is logged. These are not training problems. */
+export const URGENT_FLAGS = 'Chest pain, dizziness, fainting or trouble breathing: stop and get medical help now.';

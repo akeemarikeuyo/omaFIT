@@ -203,7 +203,7 @@ export default function SettingsScreen() {
               <TextInput
                 style={[ui.input, { minHeight: 60, textAlignVertical: 'top' }]}
                 multiline
-                placeholder="Back / health notes, e.g. occasional lower back pain"
+                placeholder="Health notes, e.g. old knee injury, occasional lower back pain"
                 {...field('healthNotes')}
               />
               <Button title="Save profile" kind="secondary" onPress={saveProfile} />

@@ -22,7 +22,7 @@ assume a gym, a free schedule and no aches. omaFIT starts from the desk:
 - **Walking and run-walk days** that fit around a working week.
 - An **AI coach you control.** Choose Claude, ChatGPT or Gemini (which has a free tier), add your own API key in
   Settings, and the coach reviews your logs and suggests next
-  week's changes based on your profile, back pain and progress. Nothing changes until you approve it.
+  week's changes based on your profile, any pain you've logged and your progress. Nothing changes until you approve it.
 
 No accounts, no backend, no subscription. Your data stays on your phone.
 
@@ -31,13 +31,14 @@ No accounts, no backend, no subscription. Your data stays on your phone.
 | Tab | What it does |
 | --- | --- |
 | **Today** | Today's session from the weekly schedule, the daily posture routine, walk logging, your streak, and recent history. |
-| **Progress** | Day streak, active days this week, and a daily chart of sets done, walk minutes and back pain (2 weeks or 30 days). |
+| **Progress** | Day streak, active days this week, and a daily chart of sets done, walk minutes and pain, with where it hurt (2 weeks or 30 days). |
 | **Review** | **Build my plan with AI** (see below), and a weekly review where your AI coach reads the last 2 weeks of logs and suggests up to 4 changes. You tap **Apply** to accept them, and **Reset plan** restores the original. |
 | **Coach** | Chat with your AI coach. It sees your profile, posture findings, plan and recent logs. |
 | **Settings** | AI key, your profile (goals, sitting hours, posture and back notes), your equipment, rest time between sets, program start date. |
 
 During a workout you can tick off sets, log weight and reps (prefilled from last time), use a rest timer you configure
-(60 s minimum) and rate back pain and effort. Each exercise has form cues, a start-to-end photo demo and, where no photo
+(60 s minimum), log any pain or discomfort by body area (neck, back, shoulder, knee and more, 0-10) and rate
+effort. Sets save as you tick them, so you can continue later the same day. Each exercise has form cues, a start-to-end photo demo and, where no photo
 fits, a link to a short YouTube demo.
 
 ### Build my plan with AI
@@ -67,7 +68,7 @@ The AI suggests changes, and the app checks them before you see them:
 - It blocks weight jumps of more than about 10% + 2.5 kg, and any weight change for an exercise with no logged weight
   yet.
 - The coaching rules stay conservative. There are no heavy barbell back squats or deadlifts, pulling volume is at
-  least twice pushing volume, load drops when back pain is 5/10 or higher, and red-flag symptoms send you to a doctor or
+  least twice pushing volume, load drops on whatever loads a painful area when its pain is 5/10 or higher, and red-flag symptoms send you to a doctor or
   physio.
 - The coach is told it can't see your form and must never claim it can.
 

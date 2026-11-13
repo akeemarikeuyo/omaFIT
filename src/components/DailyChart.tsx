@@ -108,7 +108,7 @@ export function DailyChart({ days, mode }: { days: DayStats[]; mode: ChartMode }
 }
 
 function unit(mode: ChartMode) {
-  return mode === 'sets' ? 'sets' : mode === 'walk' ? 'minutes' : 'back pain out of 10';
+  return mode === 'sets' ? 'sets' : mode === 'walk' ? 'minutes' : 'worst pain out of 10';
 }
 
 function Legend({ color, text }: { color: string; text: string }) {

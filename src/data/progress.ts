@@ -1,5 +1,6 @@
 // Daily progress stats built from the workout logs. Read-only: nothing here is stored.
 import { AnyLog, isUnfinished } from '../storage/store';
+import { maxPain, painLabel, painsOf } from './pain';
 
 /** Local calendar day as YYYY-MM-DD (logs are stored in UTC, but a day is your day). */
 export function dayKey(d: Date): string {
@@ -14,7 +15,7 @@ export interface DayStats {
   postureSets: number;
   strengthSets: number;
   walkMinutes: number;
-  /** Highest back pain rated that day, or null if none (unfinished workouts aren't rated yet) */
+  /** Highest pain rated that day in any area (0 = rated, no pain), or null if nothing rated (unfinished workouts aren't) */
   maxPain: number | null;
   active: boolean;
 }
@@ -52,7 +53,7 @@ export function dailyStats(logs: AnyLog[], days: number, now = new Date()): DayS
       postureSets,
       strengthSets,
       walkMinutes,
-      maxPain: rated.length ? Math.max(...rated.map(l => l.backPain)) : null,
+      maxPain: rated.length ? Math.max(...rated.map(l => maxPain(painsOf(l)))) : null,
       active: dayLogs.length > 0,
     });
   }
@@ -105,6 +106,30 @@ export function summary(logs: AnyLog[], now = new Date()): Summary {
     totalWalkMinutes: logs.reduce((n, l) => n + (l.kind === 'cardio' ? l.minutes : 0), 0),
     activeToday,
   };
+}
+
+export interface PainPlace {
+  label: string;
+  days: number;
+  worst: number;
+}
+
+/** Where pain was logged since `since`, most days first. */
+export function painPlaces(logs: AnyLog[], since: Date): PainPlace[] {
+  const byPlace = new Map<string, { days: Set<string>; worst: number }>();
+  for (const l of logs) {
+    if (isUnfinished(l) || new Date(l.date) < since) continue;
+    for (const p of painsOf(l)) {
+      const label = painLabel(p);
+      const e = byPlace.get(label) ?? { days: new Set<string>(), worst: 0 };
+      e.days.add(dayKey(new Date(l.date)));
+      e.worst = Math.max(e.worst, p.score);
+      byPlace.set(label, e);
+    }
+  }
+  return [...byPlace.entries()]
+    .map(([label, e]) => ({ label, days: e.days.size, worst: e.worst }))
+    .sort((a, b) => b.days - a.days || b.worst - a.worst);
 }
 
 /** A short line to nudge you back. */
