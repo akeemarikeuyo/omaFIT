@@ -45,7 +45,7 @@ export function Button({
   );
 }
 
-/** A row of tappable numbers, used for back pain (0-10) and effort (1-5). */
+/** A row of tappable numbers, used for pain (0-10) and effort (1-5). */
 export function ScalePicker({
   label,
   min,

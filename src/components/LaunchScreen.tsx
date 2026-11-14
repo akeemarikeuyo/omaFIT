@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme';
-import { APP_NAME, DumbbellIcon } from './Brand';
+import { APP_NAME, LogoMark, TAGLINE, Wordmark } from './Brand';
 
 /**
  * Full-screen omaFIT logo shown while the app starts. It matches the native splash screen
- * (gold dumbbell on the dark background), then fades out over the app.
+ * (the omaFIT logo on the dark background), then fades out over the app.
  * Expo Go shows its own loading screen before this; built apps go straight from the native splash to this.
  */
 export function LaunchScreen({ visible, onLayout, onHidden }: { visible: boolean; onLayout?: () => void; onHidden: () => void }) {
@@ -13,7 +13,7 @@ export function LaunchScreen({ visible, onLayout, onHidden }: { visible: boolean
   const [opacity] = useState(() => new Animated.Value(1));
   const [lift] = useState(() => new Animated.Value(0));
 
-  // A gentle "lift": the dumbbell rises and settles, like a rep
+  // A gentle bounce: the figure rises and settles, like a step
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -43,16 +43,17 @@ export function LaunchScreen({ visible, onLayout, onHidden }: { visible: boolean
       accessibilityLabel={`${APP_NAME} is loading`}
     >
       <Animated.View style={{ transform: [{ translateY }] }}>
-        <DumbbellIcon size={150} />
+        <LogoMark size={170} />
       </Animated.View>
-      <Text style={styles.word}>
-        oma<Text style={{ color: colors.accent }}>FIT</Text>
-      </Text>
+      <View style={{ alignItems: 'center', gap: 8 }}>
+        <Wordmark size={36} />
+        <Text style={styles.tagline}>{TAGLINE}</Text>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 22, zIndex: 10 },
-  word: { color: colors.text, fontSize: 34, fontWeight: '800', letterSpacing: 0.5 },
+  tagline: { color: colors.muted, fontSize: 15, fontStyle: 'italic', letterSpacing: 0.2 },
 });

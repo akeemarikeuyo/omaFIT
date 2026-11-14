@@ -5,11 +5,12 @@ import { SessionId } from '../data/plan';
 // ---------- API keys (phone's secure storage, never in the code) ----------
 
 /** One API key per AI provider. The Claude key keeps its original slot so existing keys still work. */
-export type KeyName = 'anthropic' | 'openai' | 'gemini';
+export type KeyName = 'anthropic' | 'openai' | 'gemini' | 'deepseek';
 const KEY_IDS: Record<KeyName, string> = {
   anthropic: 'anthropic_api_key',
   openai: 'openai_api_key',
   gemini: 'gemini_api_key',
+  deepseek: 'deepseek_api_key',
 };
 
 export async function getKey(name: KeyName): Promise<string | null> {
@@ -55,7 +56,7 @@ export interface Profile {
 
 export interface Settings {
   profile?: Profile;
-  /** Which AI provider the coach uses. Missing = Claude (the original provider). */
+  /** Which AI provider the coach uses. Missing = Gemini, or Claude if a Claude key is saved (see settingsWithProvider). */
   aiProvider?: KeyName;
   /** Model chosen per provider. Missing = that provider's default. */
   aiModels?: Partial<Record<KeyName, string>>;
@@ -68,6 +69,12 @@ export interface Settings {
   bodyweightKg?: number;
   /** Rest between sets on strength days. Missing = the plan's default. */
   restSeconds?: number;
+  /** The one-time "turn on notifications?" question has been shown (see src/session/restAlert.ts). */
+  notificationsAsked?: boolean;
+  /** Day the weekly review unlocks, 0 = Sunday … 6 = Saturday. Missing = Sunday. See src/data/reviewSchedule.ts. */
+  reviewDay?: number;
+  /** When "Reset plan to original" was last used: unlocks one extra weekly review. */
+  planResetAt?: string;
 }
 const SETTINGS = 'settings_v1';
 
@@ -106,25 +113,60 @@ export interface SetLog {
   weightKg?: number;
   done: boolean;
 }
+/** Where it hurts. See src/data/pain.ts for labels and which areas have a side. */
+export type PainArea = 'neck' | 'upper-back' | 'lower-back' | 'shoulder' | 'elbow' | 'wrist' | 'hip' | 'knee' | 'ankle' | 'other';
+export type PainSide = 'left' | 'right' | 'both';
+/** Pain or discomfort in one place, 1 (slight) to 10 (worst). */
+export interface PainEntry {
+  area: PainArea;
+  /** Joints only */
+  side?: PainSide;
+  score: number;
+  /** For "other": a few words, e.g. "right calf" */
+  note?: string;
+}
+
 export interface WorkoutLog {
   id: string;
   kind: 'session';
   date: string; // ISO datetime
   session: SessionId;
   sets: SetLog[];
-  /** 0 = no back pain, 10 = worst */
+  /** Lower back score (0 = none). Kept so older logs and code still work: read pain with painsOf() instead. */
   backPain: number;
+  /** Pain or discomfort by area. Missing on logs from before this field: painsOf() falls back to backPain. */
+  pains?: PainEntry[];
+  /** false = pain wasn't asked (posture routine). Missing = asked. See isPainRated(). */
+  painRated?: boolean;
   /** 1 = very easy, 5 = could not do one more rep */
   effort: number;
   notes: string;
+  /**
+   * false while the workout is still going: sets are saved as they're ticked, and back pain and effort aren't
+   * rated yet. Missing = finished (all logs before this field existed were saved at the end).
+   */
+  finished?: boolean;
 }
+
+/** A workout saved as it goes and not finished yet. Its pain and effort are not ratings yet. */
+export const isUnfinished = (l: AnyLog): l is WorkoutLog => l.kind === 'session' && l.finished === false;
+
+/**
+ * Whether this log has a pain rating. Strength days and walks/runs ask; the posture routine doesn't and is saved with
+ * `painRated: false`, so its empty pain list never counts as "no pain". Older logs always asked.
+ */
+export const isPainRated = (l: AnyLog) => !isUnfinished(l) && l.painRated !== false;
 export interface CardioLog {
   id: string;
   kind: 'cardio';
   date: string;
   type: 'walk' | 'run-walk' | 'run';
   minutes: number;
+  /** Lower back score, as on WorkoutLog. Read pain with painsOf(). */
   backPain: number;
+  pains?: PainEntry[];
+  /** false = pain wasn't asked (only walks logged by one test build). Missing = asked. */
+  painRated?: boolean;
   notes: string;
 }
 export type AnyLog = WorkoutLog | CardioLog;
@@ -139,6 +181,26 @@ export async function addLog(log: Omit<WorkoutLog, 'id'> | Omit<CardioLog, 'id'>
   logs.unshift({ ...log, id: uid() } as AnyLog);
   await writeJson(LOGS, logs);
 }
+/** New id for a workout saved as it goes (see saveWorkout). */
+export const newLogId = uid;
+
+/** Saves a workout, replacing the saved copy with the same id. Used to save a session after every tick. */
+export async function saveWorkout(log: WorkoutLog) {
+  const logs = await getLogs();
+  const i = logs.findIndex(l => l.id === log.id);
+  if (i >= 0) logs[i] = log;
+  else logs.unshift(log);
+  await writeJson(LOGS, logs);
+}
+
+const sameLocalDay = (iso: string, now = new Date()) => new Date(iso).toDateString() === now.toDateString();
+
+/** Today's unfinished workout (for one session, or any), to continue where the user left off. */
+export async function unfinishedToday(session?: SessionId): Promise<WorkoutLog | null> {
+  const found = (await getLogs()).find(l => isUnfinished(l) && sameLocalDay(l.date) && (!session || l.session === session));
+  return (found as WorkoutLog | undefined) ?? null;
+}
+
 export async function deleteLog(id: string) {
   const logs = await getLogs();
   await writeJson(LOGS, logs.filter(l => l.id !== id));
@@ -148,18 +210,22 @@ export async function logsSince(days: number): Promise<AnyLog[]> {
   return (await getLogs()).filter(l => l.date >= cutoff);
 }
 
-/** Alternate A and B: next strength day is the opposite of the last one logged. */
+/**
+ * Alternate A and B: next strength day is the opposite of the last one logged. If today's strength day was
+ * started and not finished, it's still that one, so the user can continue it.
+ */
 export async function nextStrengthSession(): Promise<'A' | 'B'> {
   const last = (await getLogs()).find(
     (l): l is WorkoutLog => l.kind === 'session' && (l.session === 'A' || l.session === 'B'),
   );
+  if (last && isUnfinished(last) && sameLocalDay(last.date)) return last.session as 'A' | 'B';
   return last?.session === 'A' ? 'B' : 'A';
 }
 
-/** Most recent logged weight and reps for an exercise, to prefill the next session. */
-export async function lastPerformance(exerciseId: string): Promise<SetLog[] | null> {
+/** Most recent logged weight and reps for an exercise, to prefill the next session. `skipLogId`: the workout in progress. */
+export async function lastPerformance(exerciseId: string, skipLogId?: string): Promise<SetLog[] | null> {
   for (const l of await getLogs()) {
-    if (l.kind !== 'session') continue;
+    if (l.kind !== 'session' || l.id === skipLogId) continue;
     const sets = l.sets.filter(s => s.exerciseId === exerciseId && s.done);
     if (sets.length) return sets;
   }
@@ -228,6 +294,11 @@ export async function removeAdditions(ids: string[]) {
 export async function resetPlan() {
   await resetOverrides();
   await writeJson(ADDITIONS, []);
+  // Nothing is applied any more, so reviews and AI plans can be applied again
+  await writeJson(REVIEWS, (await getReviews()).map(r => ({ ...r, applied: false })));
+  await writeJson(PROPOSALS, (await getProposals()).map(p => ({ ...p, applied: false })));
+  // Starting over unlocks one extra weekly review
+  await saveSettings({ planResetAt: new Date().toISOString() });
 }
 
 // ---------- posture check (findings only; photos are never stored) ----------

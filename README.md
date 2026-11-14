@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="96" alt="omaFIT dumbbell logo" />
+  <img src="assets/icon.png" width="96" alt="omaFIT logo: a figure in motion with a gold spine" />
 </p>
 
 <h1 align="center">omaFIT</h1>
@@ -20,9 +20,9 @@ assume a gym, a free schedule and no aches. omaFIT starts from the desk:
 - A **daily 10-minute posture and back routine** that also works as your warm-up.
 - **Strength sessions at home** that favour pulling, glutes and core, with back-friendly exercise choices.
 - **Walking and run-walk days** that fit around a working week.
-- An **AI coach you control.** Choose Claude, ChatGPT or Gemini (which has a free tier), add your own API key in
+- An **AI coach you control.** Choose Gemini (which has a free tier), Claude, ChatGPT or DeepSeek, add your own API key in
   Settings, and the coach reviews your logs and suggests next
-  week's changes based on your profile, back pain and progress. Nothing changes until you approve it.
+  week's changes based on your profile, any pain you've logged and your progress. Nothing changes until you approve it.
 
 No accounts, no backend, no subscription. Your data stays on your phone.
 
@@ -31,13 +31,14 @@ No accounts, no backend, no subscription. Your data stays on your phone.
 | Tab | What it does |
 | --- | --- |
 | **Today** | Today's session from the weekly schedule, the daily posture routine, walk logging, your streak, and recent history. |
-| **Progress** | Day streak, active days this week, and a daily chart of sets done, walk minutes and back pain (2 weeks or 30 days). |
-| **Review** | **Build my plan with AI** (see below), and a weekly review where your AI coach reads the last 2 weeks of logs and suggests up to 4 changes. You tap **Apply** to accept them, and **Reset plan** restores the original. |
+| **Progress** | Day streak, active days this week, and a daily chart of sets done, walk minutes and pain, with where it hurt (2 weeks or 30 days). |
+| **Review** | **Build my plan with AI** (see below), and a weekly review where your AI coach reads the last 2 weeks of logs and suggests up to 4 changes. It runs once a week, from your review day (Sunday unless you change it in Settings), to keep AI costs predictable and build a weekly habit. You tap **Apply** to accept them, and **Reset plan** restores the original. |
 | **Coach** | Chat with your AI coach. It sees your profile, posture findings, plan and recent logs. |
 | **Settings** | AI key, your profile (goals, sitting hours, posture and back notes), your equipment, rest time between sets, program start date. |
 
 During a workout you can tick off sets, log weight and reps (prefilled from last time), use a rest timer you configure
-(60 s minimum) and rate back pain and effort. Each exercise has form cues, a start-to-end photo demo and, where no photo
+(60 s minimum) and rate effort. On strength days and after walks or runs you can also log any pain or discomfort by body area (neck, back,
+shoulder, knee and more, 0-10). Sets save as you tick them, so you can continue later the same day. Each exercise has form cues, a start-to-end photo demo and, where no photo
 fits, a link to a short YouTube demo.
 
 ### Build my plan with AI
@@ -67,7 +68,7 @@ The AI suggests changes, and the app checks them before you see them:
 - It blocks weight jumps of more than about 10% + 2.5 kg, and any weight change for an exercise with no logged weight
   yet.
 - The coaching rules stay conservative. There are no heavy barbell back squats or deadlifts, pulling volume is at
-  least twice pushing volume, load drops when back pain is 5/10 or higher, and red-flag symptoms send you to a doctor or
+  least twice pushing volume, load drops on whatever loads a painful area when its pain is 5/10 or higher, and red-flag symptoms send you to a doctor or
   physio.
 - The coach is told it can't see your form and must never claim it can.
 
@@ -100,6 +101,7 @@ Pick the AI you want under **Settings → AI coach**:
 | **Gemini** (Google) — *recommended to start* | [aistudio.google.com](https://aistudio.google.com/apikey) | **Free tier** with usage limits. On the free tier Google may use what you send, including posture photos, to improve its products |
 | **Claude** (Anthropic) | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Paid API, separate from a Claude Pro subscription |
 | **ChatGPT** (OpenAI) | [platform.openai.com](https://platform.openai.com/api-keys) | Paid API, separate from a ChatGPT Plus subscription |
+| **DeepSeek** | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | Paid API with low prices. DeepSeek stores what you send in China and may use it to improve its models. Only `deepseek-flash` (the default) reads posture photos |
 
 **No paid AI account? Use Gemini.** App subscriptions such as Claude Pro, ChatGPT Plus or Gemini in the Google app can't
 power third-party apps; they need a separate API key. Gemini's API key is free:
@@ -147,7 +149,7 @@ profile in `eas.json` builds an installable APK.
 - When you run a review, build a plan or chat, your profile, equipment, posture findings, plan and the last 2 weeks of
   logs are sent to the AI provider you chose, and nowhere else. OpenAI requests are sent with storage turned off, and
   Gemini uses Google's stateless endpoint. Each provider's own data policy still applies, including Gemini's free-tier
-  note above.
+  note and DeepSeek's note above.
 - **Posture photos** are shrunk on your phone and sent only to your AI provider, only when you tap **Analyse**.
   omaFIT doesn't save them to its data. Only the written findings are kept, and those are cleared when you uninstall.
   If you choose photos from your gallery, the originals stay there.
@@ -184,14 +186,14 @@ Ideas and pull requests are welcome.
 | `src/data/library.ts` | Which library exercises the AI may pick: equipment fit, safety bans, push/pull balance |
 | `src/data/exerciseIndex.json` | Bundled exercise library (873 exercises, all with demo photos) |
 | `src/data/progress.ts` | Streak and daily stats for the Progress tab |
-| `src/api/ai/` | AI provider layer: `askAI()`, the `PROVIDERS` registry (labels, default models, key pages) and one adapter each for Claude, OpenAI and Gemini |
+| `src/api/ai/` | AI provider layer: `askAI()`, the `PROVIDERS` registry (labels, default models, key pages) and one adapter each for Claude, OpenAI, Gemini and DeepSeek |
 | `src/api/coach.ts` | Profile prompt, coaching rules, weekly review and its `validateChanges` safety checks, coach chat |
 | `src/api/planBuilder.ts` | "Build my plan": photo + profile analysis, `validateProposal` safety checks, apply |
 | `src/api/demos.ts` | Free demo lookup and search |
 | `src/storage/store.ts` | All on-device persistence |
 | `src/components/` | Shared UI, demo player, daily chart, brand mark |
 | `src/screens/` | One file per screen |
-| `scripts/make-icons.js` | Regenerates the app icons (`npm run icons`) |
+| `scripts/make-icons.js` | Builds all app icons and the in-app logo from `assets/logo.png` (`npm run icons`) |
 | `scripts/build-exercise-index.js` | Rebuilds the exercise library from free-exercise-db's `dist/exercises.json` |
 
 ## Contributing

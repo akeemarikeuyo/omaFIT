@@ -1,5 +1,7 @@
 import { effectivePlan, exerciseLabel, planAsText } from '../data/effective';
 import { candidates, EQUIPMENT_OPTIONS, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
+import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
+import { reviewStatus } from '../data/reviewSchedule';
 import { SessionId } from '../data/plan';
 import {
   AnyLog,
@@ -7,6 +9,7 @@ import {
   ExerciseOverride,
   getLogs,
   getPostureAssessment,
+  getReviews,
   getSettings,
   logsSince,
   programWeek,
@@ -57,14 +60,16 @@ function athleteProfile(s: Settings): string {
 
 export const COACHING_RULES = `
 Coaching rules you must follow:
-- Be conservative. Progress by adding reps first; add load only when every set hit the top of the rep range with effort <= 4/5 and back pain <= 3/10.
+- Be conservative. Progress by adding reps first; add load only when every set hit the top of the rep range with effort <= 4/5 and pain <= 3/10 in every area logged.
 - Load increases at most about 5-10% (or the smallest plate step, typically 1-2.5 kg per dumbbell) per week.
 - Keep upper-body pulling volume at least 2x pushing volume.
 - No barbell back squats or heavy barbell deadlifts. Prefer goblet squats, split squats, dumbbell RDLs, hip thrusts.
-- If back pain was >= 5/10 or rising: reduce load or volume on hinges, squats and the ab wheel, or swap the ab wheel for dead bugs/planks. Keep the gentle posture routine.
+- Pain is logged per area on strength days and walks/runs ("pain: none" means no pain or discomfort). The posture routine doesn't ask, so it has no pain field: that means not asked, not pain-free. Pain after walks or runs (often knees, ankles, feet, hips or lower back) counts too: ease the walk/run progression (shorter, flatter, more walking intervals) as well as the strength exercises that load that area. If pain in any area was >= 5/10 or rising: reduce load or volume on the exercises that load that area, or swap them for gentler ones. Never add load to exercises that load a painful area. What loads each area: ${PAIN_LOADS_FOR_AI}.
+- If lower back pain was >= 5/10 or rising: reduce load or volume on hinges, squats and the ab wheel, or swap the ab wheel for dead bugs/planks. Keep the gentle posture routine.
 - Only use the equipment listed. Never invent data the logs do not contain; if there is too little data, say so and change little or nothing.
 - New or swapped exercises must come from the exercise library list, by its exact id. Never invent exercises.
-- Red flags (pain spreading down a leg, numbness/tingling, leg weakness, night pain, bladder/bowel changes, pain not improving after 4-6 weeks): tell them to stop and see a doctor or physiotherapist, and do not progress anything.
+- Red flags (pain spreading down a leg or arm, numbness/tingling, weakness in a leg or arm, night pain, bladder/bowel changes, pain not improving after 4-6 weeks; or a joint that swells, locks, gives way, can't bear weight, or isn't settling after 2 weeks): tell them to stop and see a doctor or physiotherapist, and do not progress anything.
+- Chest pain, dizziness, fainting or trouble breathing are not training issues: tell them to stop and get medical help now.
 - You cannot see their exercise form. Say so if asked, and point them to the exercise cues, demo photos and demo video.
 - You are a coach, not a doctor. Keep answers short and practical.
 `.trim();
@@ -94,7 +99,8 @@ export function logsAsText(logs: AnyLog[]): string {
     .map(l => {
       const day = l.date.slice(0, 10);
       if (l.kind === 'cardio') {
-        return `${day} ${l.type} ${l.minutes} min | back pain ${l.backPain}/10${l.notes ? ` | "${l.notes}"` : ''}`;
+        const pain = l.painRated === false ? '' : ` | pain: ${painForAI(painsOf(l))}`;
+        return `${day} ${l.type} ${l.minutes} min${pain}${l.notes ? ` | "${l.notes}"` : ''}`;
       }
       const byEx = new Map<string, string[]>();
       for (const s of l.sets) {
@@ -107,7 +113,10 @@ export function logsAsText(logs: AnyLog[]): string {
       const exLines = [...byEx.entries()].map(([id, sets]) => `   [${id}] ${exerciseLabel(id)}: ${sets.join(', ')}`);
       const title = l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`;
       return (
-        `${day} ${title} | effort ${l.effort}/5 | back pain ${l.backPain}/10` +
+        `${day} ${title} | ` +
+        (l.finished === false
+          ? 'unfinished, effort and pain not rated'
+          : `effort ${l.effort}/5${l.painRated === false ? '' : ` | pain: ${painForAI(painsOf(l))}`}`) +
         `${l.notes ? ` | "${l.notes}"` : ''}\n${exLines.join('\n')}`
       );
     })
@@ -150,7 +159,7 @@ const REVIEW_TOOL = {
       summary: { type: 'string', description: '2-4 short sentences on how the week went, plain language.' },
       safety_note: {
         type: 'string',
-        description: 'Only if back pain or a red flag needs attention. Otherwise omit.',
+        description: 'Only if pain in any area or a red flag needs attention. Otherwise omit.',
       },
       changes: {
         type: 'array',
@@ -272,6 +281,11 @@ export async function runWeeklyReview(): Promise<ReviewResult> {
     throw new AIError('Log at least one workout before running a review.');
   }
   const settings = await getSettings();
+  // Once a week (see reviewSchedule.ts). Checked here too, not just in the UI, so no screen can run extra reviews.
+  const status = reviewStatus(await getReviews(), settings);
+  if (!status.allowed) {
+    throw new AIError(`You've had this week's review. The next one opens on ${status.next?.toDateString()}.`);
+  }
   const { toolInput } = await askAI({
     maxTokens: 16000,
     system: [{ text: `You are a careful strength and posture coach.\n\n${COACHING_RULES}` }, librarySystemBlock(settings)],

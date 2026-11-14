@@ -10,13 +10,14 @@ Akeem Akanni-ola ([akanniola.com](https://www.akanniola.com)). MIT licensed.
 **Direction (shapes design decisions):** plans are built per user. "Build my plan" (Review tab) sends the user's
 profile, equipment, logs and optional posture photos to their AI agent, which proposes changes using only exercises
 from the bundled library. Users choose their AI in Settings: Gemini (Google, the default for new users because it has a free tier), Claude
-(Anthropic) or ChatGPT (OpenAI). Keep new code generic, per-user and provider-neutral: no one's personal details in the code.
+(Anthropic), ChatGPT (OpenAI) or DeepSeek. Keep new code generic, per-user and provider-neutral: no one's personal details in the code.
 
 ## Stack
 - Expo SDK 58, React Native 0.88, React 19, TypeScript (strict)
 - React Navigation 7: native stack + bottom tabs (not Expo Router)
 - Storage on device only: AsyncStorage (logs, settings and profile, reviews, chat) and expo-secure-store (one AI API
   key per provider)
+- `@expo/vector-icons` (Ionicons) for the tab bar icons; the font ships in the app, nothing loads from the internet.
 - expo-image for demo photos. YouTube demo links open with `Linking`, with no extra package.
 - Develop outside OneDrive or other synced folders. Syncing breaks Metro's file watcher (stale bundles).
 
@@ -28,25 +29,32 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - `npx expo install <pkg>` — add packages with SDK-compatible versions. Don't use plain `npm install <pkg>` for
   Expo/RN packages.
 - `npm run icons` — regenerate app icons from `scripts/make-icons.js`
+- Local APK (Windows): `npx expo prebuild --platform android --clean` (only after adding a package or changing
+  `app.json`), then in `android/`: `./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`. Native build
+  paths pass Windows' 260-character limit, so Gradle must use CMake 3.31+ (its Ninja handles long paths): prebuild
+  deletes `android/local.properties`, so recreate it with `sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk` and
+  `cmake.dir=C\:/Users/<you>/AppData/Local/Android/Sdk/cmake/3.31.6` (forward slashes; install CMake 3.31 in the SDK
+  Manager if missing). Without it the build fails with `ninja: error: mkdir(...): No such file or directory`.
 
 ## Layout
 | Path | What |
 | --- | --- |
-| `App.tsx` | Navigation: tabs (Today, Progress, Review, Coach, Settings) + stack (Session, Exercise, PlanBuilder); launch screen |
+| `App.tsx` | Navigation: tabs (Today, Progress, Review, Coach, Settings) + stack (Session, Walk, LogDetail, Exercise, PlanBuilder); launch screen |
 | `src/data/plan.ts` | Baseline plan: posture routine, Day A, Day B, walking plan, weekday schedule, red-flag text. Exercises can have `demoId` (photos) and `videoUrl` (YouTube Short). |
 | `src/data/effective.ts` | Baseline plan + approved changes (overrides incl. `removed`, swaps with `demoId`, AI-added library exercises); `effectivePlan()`, `exerciseLabel()`, `planAsText()` |
 | `src/data/library.ts` | What the AI may pick: `rejectReason()` (equipment fit with substitutes, banned lifts, level/category, posture-routine limits), `candidates()`, `upperBodyBalance()`, added-exercise ids `lib-<session>-<libraryId>` |
 | `src/data/progress.ts` | Streak, weekly and daily stats for the Progress tab and the Today streak card (read-only, derived from logs) |
 | `src/data/exerciseIndex.json` | Bundled free-exercise-db library: 873 exercises (id, name, equipment, category, force, level, muscles, image paths). Regenerate with `scripts/build-exercise-index.js`. |
-| `src/api/ai/` | Provider layer. `index.ts`: `askAI()` (the only way the app calls an AI), `PROVIDERS` registry (label, `defaultModel`, key page, cost/privacy note), `listModels()`, `testConnection()`. `types.ts`: neutral `AIRequest`/`AIResult`, `AIError`. One adapter per provider: `anthropic.ts` (Messages API), `openai.ts` (Responses API, `store: false`), `gemini.ts` (stateless `generateContent`) |
+| `src/api/ai/` | Provider layer. `index.ts`: `askAI()` (the only way the app calls an AI), `PROVIDERS` registry (label, `defaultModel`, key page, cost/privacy note), `listModels()`, `testConnection()`. `types.ts`: neutral `AIRequest`/`AIResult`, `AIError`. One adapter per provider: `anthropic.ts` (Messages API), `openai.ts` (Responses API, `store: false`), `gemini.ts` (stateless `generateContent`), `deepseek.ts` (OpenAI-compatible Chat Completions) |
 | `src/api/coach.ts` | Provider-neutral coaching: `athleteProfile()` from Settings, `COACHING_RULES`, cacheable `librarySystemBlock()`, weekly review + `validateChanges`, coach chat |
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
-| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs, overrides, reviews, chat, demo picks |
-| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (omaFIT wordmark + dumbbell), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test) |
-| `src/screens/` | Today, Progress, Session, Exercise, Review, Coach, Settings, PlanBuilder |
+| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (a workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating. Pain is asked on strength days and walks/runs; posture logs save `painRated: false`. Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
+| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
+| `src/screens/` | Today, Progress, Session, Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
+| `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |
-| `scripts/make-icons.js` | Dependency-free PNG icon generator. The dumbbell shape matches `Brand.tsx`, so change both together. |
+| `scripts/make-icons.js` | Dependency-free PNG icon generator: builds every app icon, the splash image and `assets/logo-mark.png` (used by `Brand.tsx`) from the master `assets/logo.png`. To change the logo, replace the master and run `npm run icons`. |
 
 ## Rules — keep these unless the maintainer explicitly says otherwise
 - **Safety first.** Keep `validateChanges` (`src/api/coach.ts`) and `validateProposal` (`src/api/planBuilder.ts`).
@@ -56,12 +64,15 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - **The AI only picks from the bundled library.** Every exercise the AI adds or swaps in must be an exact
   `exerciseIndex.json` id that passes `rejectReason()` in `src/data/library.ts`, so it always has a demo and fits the
   user's equipment. Never accept free-text exercises from the AI.
+- **Weekly review runs once a week** (`src/data/reviewSchedule.ts`): it opens on the user's review day (`Settings.reviewDay`, default Sunday) and stays open until run; "Reset plan to original" unlocks one extra. `runWeeklyReview` enforces it, not only the UI. Don't remove the limit: it keeps users' API costs predictable.
 - **Nothing changes the plan silently.** AI suggestions apply only when the user taps Apply (`mergeOverrides`,
   `addAdditions`). `plan.ts` is the baseline, and "Reset plan" (`resetPlan`) must keep working.
 - **Posture photos are never stored by the app.** They're resized on the phone, sent once to the user's AI provider
   and dropped. Only the text findings are saved (`posture_assessment_v1`). The AI describes, never diagnoses.
-- **Conservative coaching rules:** no barbell back squats or heavy barbell deadlifts, pull volume ≥ 2x push, back pain
-  ≥ 5 means reduce load, and red flags mean see a doctor or physio. The AI can't see form, so never claim it can (this
+- **Conservative coaching rules:** no barbell back squats or heavy barbell deadlifts, pull volume ≥ 2x push, pain
+  ≥ 5 in any area means reduce load on what loads that area, and red flags mean see a doctor or physio. Pain is logged
+  per area (`PainEntry`, `src/data/pain.ts`): read it with `painsOf()`, never `backPain` directly (it's the lower back
+  score, kept for old logs). The AI can't see form, so never claim it can (this
   still applies once photo upload exists).
 - **No personal data in code.** User details come from the Settings profile (`Settings.profile`). Prompts and UI text
   refer to "the user"/"you" and use they/them, never a hard-coded name or pronoun.
@@ -81,10 +92,13 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
   `KeyName` slot in `store.ts`, add its API and key-page hosts to `ALLOWED_URLS`, and document its cost and privacy note.
 - **Structured answers** come back as one tool call (`AIRequest.tool`). Adapters force the tool where the provider
   allows it (OpenAI, Gemini). Current Claude models reject a forced tool, so the Claude adapter uses `auto` and the
-  prompt names the tool. Output from every provider is untrusted: always type-check and run it through the validators.
+  prompt names the tool. DeepSeek rejects a forced tool while thinking, so its adapter tries `auto` first and retries
+  once with thinking off and the tool forced. Output from every provider is untrusted: always type-check and run it through the validators.
   Keep `maxTokens` generous (models think first), and keep the library block last in `system` with `cache: true`.
 - **Provider privacy:** OpenAI calls send `store: false`; Gemini uses stateless `generateContent`, not the stateful
-  Interactions API. Keep Gemini's free-tier data-use warning in Settings and on the photo screen.
+  Interactions API. Keep Gemini's free-tier data-use warning and DeepSeek's note (data stored in China, may be used for
+  training) in Settings and on the photo screen: they live in `PROVIDERS` (`note`, `photoWarning`). Models that can't
+  read images are marked with `readsPhotos`, and the photo screen offers to continue without photos.
 - Storage keys end in `_v1`. Adding an optional field is fine. If you change a stored shape incompatibly, bump the key
   or migrate old data so existing logs aren't lost. `saveSettings` merges a partial patch, so never overwrite settings
   wholesale.
@@ -96,7 +110,7 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 - **Network:** `fetch` and other network APIs are allowed only in `src/api/`. Every web address in code must be on the
   `ALLOWED_URLS` list in `eslint.config.js`: the supported AI providers' APIs and key pages (Anthropic, OpenAI,
-  Google), the free-exercise-db GitHub repo, YouTube, Expo docs, the maintainer's site. Never send user data anywhere
+  Google, DeepSeek), the free-exercise-db GitHub repo, YouTube, Expo docs, the maintainer's site. Never send user data anywhere
   except the AI provider the user chose.
 - **Data the AI receives:** only what's needed (profile, equipment, findings, plan, last 2 weeks of logs, photos only
   on Analyse). Show the user when data leaves the phone. Never send the API key anywhere but the provider's auth header.
@@ -109,8 +123,9 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
   obfuscated code, web views, or over-the-air update services.
 - **Device access:** camera and photos only through `expo-image-picker` / `expo-image-manipulator` in
   `PlanBuilderScreen`. `Linking.openURL` only in `ExerciseScreen` (YouTube demos) and `AISettings` (fixed API-key
-  page URLs). No location, contacts, clipboard,
-  sensors, device IDs or notifications without the maintainer's approval. New permissions in `app.json` need it too.
+  page URLs). Notifications only through `expo-notifications` in `src/session/restAlert.ts`, for the local "rest over"
+  alert (no push notifications), asked once on first launch (`offerRestAlertsOnce`). No location, contacts, clipboard, sensors, device IDs or other notifications without
+  the maintainer's approval. New permissions in `app.json` need it too.
 - **No tracking:** no analytics, crash reporters, ads or third-party SDKs that collect data.
 - **Dependencies:** add only with `npx expo install`, only when really needed, from well-known maintainers. Explain
   each new package in the PR. Never hand-edit `package-lock.json`. No `postinstall`/`prepare` scripts.
@@ -122,6 +137,8 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 ## Conventions
 - Functional components + hooks; screens reload data with `useFocusEffect`.
+- Screens with text inputs use `KeyboardAwareScrollView` (forms) or `KeyboardAvoider` (chat input bar) from
+  `src/components/KeyboardAware.tsx`, so the keyboard never covers what the user is typing.
 - Use `colors`, `space` and `ui` from `src/theme`. Reuse `Button`, `ScalePicker`, `Pill` and `Brand` instead of new
   one-off styles.
 - Plan exercise ids (e.g. `goblet-squat`, `face-pull`) are referenced by logs, overrides and demo picks. Don't rename an
@@ -135,5 +152,5 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 ## Testing
 No automated tests yet. After a change, run `npm run check`, then check it on a phone in Expo Go.
-Weekday logic: Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Use "Do a different
+Weekday logic: Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Use "Start a new
 session" on Today to test strength screens on other days.

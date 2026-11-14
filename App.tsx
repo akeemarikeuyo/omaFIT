@@ -1,21 +1,26 @@
+import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchScreen } from './src/components/LaunchScreen';
 import { RootStackParamList, TabParamList } from './src/navigation';
+import { offerRestAlertsOnce } from './src/session/restAlert';
 import { getSettings } from './src/storage/store';
 import CoachScreen from './src/screens/CoachScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
+import LogDetailScreen from './src/screens/LogDetailScreen';
 import PlanBuilderScreen from './src/screens/PlanBuilderScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import ReviewScreen from './src/screens/ReviewScreen';
 import SessionScreen from './src/screens/SessionScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TodayScreen from './src/screens/TodayScreen';
+import WalkScreen from './src/screens/WalkScreen';
 import { colors } from './src/theme';
 
 // Keep the native splash up until our own logo screen has drawn, so there's no flash between them
@@ -39,17 +44,53 @@ const theme = {
   },
 };
 
+type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Tab icons: filled when selected, outline otherwise. */
+const TAB_ICONS: Record<keyof TabParamList, [IconName, IconName]> = {
+  Today: ['today', 'today-outline'],
+  Progress: ['stats-chart', 'stats-chart-outline'],
+  Review: ['sparkles', 'sparkles-outline'],
+  Coach: ['chatbubbles', 'chatbubbles-outline'],
+  Settings: ['settings', 'settings-outline'],
+};
+
+/** The selected tab's icon sits on a soft gold pill, like a native nav bar. */
+function TabIcon({ route, focused, color }: { route: keyof TabParamList; focused: boolean; color: string }) {
+  const [filled, outline] = TAB_ICONS[route];
+  return (
+    <View
+      style={{
+        width: 56,
+        height: 30,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? colors.accentSoft : 'transparent',
+      }}
+    >
+      <Ionicons name={focused ? filled : outline} size={21} color={color} />
+    </View>
+  );
+}
+
 function Tabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
-        tabBarIconStyle: { display: 'none' },
-        tabBarLabelStyle: { fontSize: 14, fontWeight: '700' },
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
-      }}
+        tabBarIcon: ({ focused, color }) => <TabIcon route={route.name} focused={focused} color={color} />,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+        tabBarItemStyle: { paddingTop: 6 },
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          elevation: 0,
+        },
+      })}
     >
       <Tab.Screen name="Today" component={TodayScreen} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
@@ -75,6 +116,11 @@ export default function App() {
     };
   }, []);
 
+  // Once the launch screen is gone, ask (only ever once) whether to turn on the rest-over alert
+  useEffect(() => {
+    if (!showLaunch) void offerRestAlertsOnce();
+  }, [showLaunch]);
+
   const onLaunchLayout = useCallback(() => SplashScreen.hide(), []);
   const onLaunchHidden = useCallback(() => setShowLaunch(false), []);
 
@@ -92,6 +138,8 @@ export default function App() {
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
           <Stack.Screen name="Session" component={SessionScreen} />
           <Stack.Screen name="Exercise" component={ExerciseScreen} />
+          <Stack.Screen name="Walk" component={WalkScreen} options={{ title: 'Walk / run' }} />
+          <Stack.Screen name="LogDetail" component={LogDetailScreen} options={{ title: 'Logged' }} />
           <Stack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'Build my plan' }} />
         </Stack.Navigator>
       </NavigationContainer>

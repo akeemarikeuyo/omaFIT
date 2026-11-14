@@ -31,7 +31,7 @@ Keep the project outside OneDrive or other synced folders, because syncing break
 2. Make your change. [CLAUDE.md](CLAUDE.md) explains the code layout, conventions and rules in detail.
 3. Run `npm run check` (lint, including the security rules, plus type-check) and fix every error.
 4. Test it on a phone in Expo Go. There are no automated tests yet. To test strength screens on any day, use
-   **Do a different session** on the Today tab.
+   **Start a new session** on the Today tab.
 5. Open a pull request and fill in the template.
 
 CI runs the same checks on every pull request, and the maintainer reviews each one.

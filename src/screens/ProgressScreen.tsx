@@ -3,15 +3,15 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChartMode, DailyChart } from '../components/DailyChart';
-import { Segmented } from '../components/ui';
-import { dailyStats, encouragement, summary } from '../data/progress';
+import { painColor, Segmented } from '../components/ui';
+import { dailyStats, encouragement, painPlaces, summary } from '../data/progress';
 import { AnyLog, getLogs } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 const MODES: { id: ChartMode; label: string }[] = [
   { id: 'sets', label: 'Sets done' },
   { id: 'walk', label: 'Walk min' },
-  { id: 'pain', label: 'Back pain' },
+  { id: 'pain', label: 'Pain' },
 ];
 const RANGES = [
   { days: 14, label: '2 weeks' },
@@ -33,6 +33,7 @@ export default function ProgressScreen() {
   const days = dailyStats(logs, range);
   const activeDays = days.filter(d => d.active).length;
 
+  const pains = days.flatMap(d => (d.maxPain == null ? [] : [d.maxPain]));
   let caption: string;
   if (mode === 'sets') {
     const sets = days.reduce((n, d) => n + d.postureSets + d.strengthSets, 0);
@@ -41,11 +42,11 @@ export default function ProgressScreen() {
     const mins = days.reduce((n, d) => n + d.walkMinutes, 0);
     caption = `${mins} min walked in the last ${range} days`;
   } else {
-    const pains = days.flatMap(d => (d.maxPain == null ? [] : [d.maxPain]));
     caption = pains.length
-      ? `Average ${(pains.reduce((a, b) => a + b, 0) / pains.length).toFixed(1)}/10 on logged days. Lower is better.`
-      : 'No back pain scores logged yet.';
+      ? `Worst pain each day, any area. Average ${(pains.reduce((a, b) => a + b, 0) / pains.length).toFixed(1)}/10 on logged days. Lower is better.`
+      : 'Nothing logged yet.';
   }
+  const places = mode === 'pain' ? painPlaces(logs, days[0].date) : [];
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
@@ -65,6 +66,23 @@ export default function ProgressScreen() {
             <DailyChart days={days} mode={mode} />
           </View>
           <Text style={ui.muted}>{caption}</Text>
+          {mode === 'pain' && places.length > 0 && (
+            <View style={{ gap: 4 }}>
+              <Text style={ui.h3}>Where</Text>
+              {places.map(p => (
+                <View key={p.label} style={[ui.row, { justifyContent: 'space-between' }]}>
+                  <Text style={ui.body}>{p.label}</Text>
+                  <Text style={ui.small}>
+                    {p.days} {p.days === 1 ? 'day' : 'days'} · worst{' '}
+                    <Text style={{ color: painColor(p.worst), fontWeight: '700' }}>{p.worst}/10</Text>
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {mode === 'pain' && places.length === 0 && pains.length > 0 && (
+            <Text style={ui.small}>No pain or discomfort logged in this period.</Text>
+          )}
           <Segmented
             options={RANGES.map(r => ({ key: r.days, label: r.label }))}
             value={range}

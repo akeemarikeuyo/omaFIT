@@ -18,6 +18,8 @@ const ALLOWED_URLS = [
   'https://platform.openai.com/',
   'https://generativelanguage.googleapis.com/',
   'https://aistudio.google.com/',
+  'https://api.deepseek.com/',
+  'https://platform.deepseek.com/',
   // Free exercise demos
   'https://raw.githubusercontent.com/yuhonas/free-exercise-db/',
   'https://github.com/yuhonas/free-exercise-db',
@@ -73,7 +75,6 @@ const BANNED_PACKAGES = [
   { name: 'expo-location', message: 'Location access is not part of omaFIT.' },
   { name: 'expo-contacts', message: 'Contacts access is not part of omaFIT.' },
   { name: 'expo-clipboard', message: 'Clipboard access needs the maintainer’s approval.' },
-  { name: 'expo-notifications', message: 'Notifications need the maintainer’s approval.' },
   { name: 'expo-sensors', message: 'Sensor access needs the maintainer’s approval.' },
   { name: 'expo-device', message: 'Device fingerprinting is not allowed.' },
   { name: 'expo-application', message: 'Device/app identifiers are not allowed.' },
@@ -99,6 +100,13 @@ const OWNED = {
     paths: [
       { name: 'expo-image-picker', message: 'Photo access is only for the posture check in PlanBuilderScreen.' },
       { name: 'expo-image-manipulator', message: 'Photo processing is only for the posture check in PlanBuilderScreen.' },
+    ],
+  },
+  // Approved by the maintainer for one use: a local "rest over" alert during a workout. No push notifications.
+  restAlert: {
+    files: ['src/session/restAlert.ts'],
+    paths: [
+      { name: 'expo-notifications', message: 'Notifications are only for the local rest-timer alert in src/session/restAlert.ts.' },
     ],
   },
 };
@@ -157,6 +165,7 @@ module.exports = defineConfig([
   { files: ['src/api/**'], rules: { 'no-restricted-globals': 'off' } },
   { files: OWNED.storage.files, rules: { 'no-restricted-imports': restrictedImports(['storage']) } },
   { files: OWNED.photos.files, rules: { 'no-restricted-imports': restrictedImports(['photos']) } },
+  { files: OWNED.restAlert.files, rules: { 'no-restricted-imports': restrictedImports(['restAlert']) } },
   { files: LINK_FILES, rules: { 'no-restricted-properties': 'off' } },
   // Build scripts run on the maintainer's machine: plain Node, no network.
   {

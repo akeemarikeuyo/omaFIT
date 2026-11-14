@@ -1,8 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, ScrollViewInstance, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, ScrollViewInstance, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { askCoach } from '../api/coach';
+import { KeyboardAvoider } from '../components/KeyboardAware';
 import { Button } from '../components/ui';
 import { ChatMessage, clearChat, getChat, saveChat } from '../storage/store';
 import { colors, space, ui } from '../theme';
@@ -50,7 +51,7 @@ export default function CoachScreen() {
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoider onKeyboardShown={() => scroll.current?.scrollToEnd({ animated: true })}>
         <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.lg }]}>
           <Text style={ui.h1}>Coach</Text>
           {messages.length > 0 && <Text onPress={clear} style={{ color: colors.muted }}>Clear</Text>}
@@ -98,7 +99,7 @@ export default function CoachScreen() {
           />
           <Button title="Send" onPress={() => send(input)} disabled={!input.trim()} loading={sending} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </SafeAreaView>
   );
 }
