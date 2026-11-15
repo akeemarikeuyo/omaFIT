@@ -143,6 +143,12 @@ export default function PlanBuilderScreen({ navigation }: Props) {
           <View style={ui.card}>
             <Text style={ui.h2}>1. You and your equipment</Text>
             <Text style={ui.body}>Profile: {profileFilled ? `${profileFilled} of 5 details filled in` : 'not filled in yet'}</Text>
+            {(!p.goals?.trim() || !p.healthNotes?.trim()) && (
+              <Text style={[ui.small, { color: colors.warn }]}>
+                For a better plan, add {!p.goals?.trim() && !p.healthNotes?.trim() ? 'your goals and any pain or injuries' : !p.goals?.trim() ? 'your goals' : 'any pain or injuries (or "none")'}{' '}
+                in Settings → You first. Your coach plans around them.
+              </Text>
+            )}
             <Text style={ui.body}>Equipment: {equipmentText}</Text>
             {!!settings?.equipmentNotes && <Text style={ui.small}>{settings.equipmentNotes}</Text>}
             <Button title="Edit in Settings" kind="secondary" onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })} />

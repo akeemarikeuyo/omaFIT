@@ -2,7 +2,7 @@
 // Everything here can be changed later in Settings. The AI step can be skipped: the app works without a key.
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AISettings } from '../components/AISettings';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
@@ -17,15 +17,35 @@ import { colors, space, ui } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Setup'>;
 
-const STEPS = 4;
+// Steps, in order. "About you" and the AI key are optional.
+const WELCOME = 0;
+const LEVEL = 1;
+const ABOUT = 2;
+const EQUIPMENT = 3;
+const AI = 4;
+const STEPS = 5;
 
 export default function SetupScreen({ navigation }: Props) {
   const [step, setStep] = useState(0);
   const [level, setLevel] = useState<TrainingLevel>(DEFAULT_LEVEL);
   const [equipment, setEquipment] = useState<string[]>([]);
+  const [goals, setGoals] = useState('');
+  const [sitting, setSitting] = useState('');
+  const [health, setHealth] = useState('');
 
   const finish = async () => {
-    await saveSettings({ level, equipment: equipment.length ? equipment : [BODYWEIGHT], onboarded: true });
+    const hours = Number(sitting);
+    const profile = {
+      ...(goals.trim() ? { goals: goals.trim() } : {}),
+      ...(hours > 0 && hours <= 24 ? { sittingHoursPerDay: Math.round(hours) } : {}),
+      ...(health.trim() ? { healthNotes: health.trim() } : {}),
+    };
+    await saveSettings({
+      level,
+      equipment: equipment.length ? equipment : [BODYWEIGHT],
+      onboarded: true,
+      ...(Object.keys(profile).length ? { profile } : {}),
+    });
     navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
     // Now that they're in, ask once about the rest-over alert
     // Wait until the switch to Today has finished: a dialog opened mid-transition can be closed straight away
@@ -46,7 +66,7 @@ export default function SetupScreen({ navigation }: Props) {
           ))}
         </View>
 
-        {step === 0 && (
+        {step === WELCOME && (
           <View style={{ gap: space.lg, alignItems: 'center', paddingTop: space.lg }}>
             <LogoMark size={120} />
             <View style={{ alignItems: 'center', gap: 6 }}>
@@ -64,7 +84,7 @@ export default function SetupScreen({ navigation }: Props) {
           </View>
         )}
 
-        {step === 1 && (
+        {step === LEVEL && (
           <View style={{ gap: space.md }}>
             <Text style={ui.h1}>Your level</Text>
             <Text style={ui.muted}>So your coach knows how hard and how long to make your workouts.</Text>
@@ -76,7 +96,52 @@ export default function SetupScreen({ navigation }: Props) {
           </View>
         )}
 
-        {step === 2 && (
+        {step === ABOUT && (
+          <View style={{ gap: space.md }}>
+            <Text style={ui.h1}>About you</Text>
+            <Text style={ui.muted}>
+              Optional, but it makes the biggest difference to your plan. Saved on this phone and sent only to the AI
+              you choose.
+            </Text>
+            <View style={{ gap: space.xs }}>
+              <Text style={ui.h3}>Your goals</Text>
+              <TextInput
+                style={ui.input}
+                value={goals}
+                onChangeText={setGoals}
+                placeholder="e.g. better posture, more strength"
+                placeholderTextColor={colors.muted}
+              />
+            </View>
+            <View style={{ gap: space.xs }}>
+              <Text style={ui.h3}>Hours sitting per day</Text>
+              <TextInput
+                style={ui.input}
+                value={sitting}
+                onChangeText={v => setSitting(v.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                maxLength={2}
+                placeholder="e.g. 9"
+                placeholderTextColor={colors.muted}
+              />
+            </View>
+            <View style={{ gap: space.xs }}>
+              <Text style={ui.h3}>Any pain, injuries or health notes?</Text>
+              <TextInput
+                style={[ui.input, { minHeight: 70, textAlignVertical: 'top' }]}
+                value={health}
+                onChangeText={setHealth}
+                multiline
+                placeholder="e.g. old knee injury, lower back gets stiff"
+                placeholderTextColor={colors.muted}
+              />
+              <Text style={ui.small}>Your coach avoids loading a painful area. It gives training tips, not medical advice.</Text>
+            </View>
+            <Text style={ui.small}>Add your name, age and more later in Settings → You.</Text>
+          </View>
+        )}
+
+        {step === EQUIPMENT && (
           <View style={{ gap: space.md }}>
             <Text style={ui.h1}>Your equipment</Text>
             <Text style={ui.muted}>
@@ -99,7 +164,7 @@ export default function SetupScreen({ navigation }: Props) {
           </View>
         )}
 
-        {step === 3 && (
+        {step === AI && (
           <View style={{ gap: space.md }}>
             <Text style={ui.h1}>Your AI coach</Text>
             <Text style={ui.muted}>
@@ -115,11 +180,11 @@ export default function SetupScreen({ navigation }: Props) {
         <View style={{ flex: 1 }} />
         <View style={{ gap: space.sm, marginTop: space.lg }}>
           <Button
-            title={step === 0 ? "Let's set up" : step === STEPS - 1 ? 'Finish' : 'Next'}
+            title={step === WELCOME ? "Let's set up" : step === STEPS - 1 ? 'Finish' : step === ABOUT && !goals && !sitting && !health ? 'Skip' : 'Next'}
             onPress={next}
-            disabled={step === 2 && equipment.length === 0}
+            disabled={step === EQUIPMENT && equipment.length === 0}
           />
-          {step === 2 && equipment.length === 0 && (
+          {step === EQUIPMENT && equipment.length === 0 && (
             <Text style={[ui.small, { textAlign: 'center' }]}>Pick at least one (Bodyweight counts).</Text>
           )}
           {step === STEPS - 1 && <Button title="Skip for now" kind="secondary" onPress={finish} />}
