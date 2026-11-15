@@ -49,7 +49,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/api/coach.ts` | Provider-neutral coaching: `athleteProfile()` from Settings, `COACHING_RULES`, cacheable `librarySystemBlock()`, weekly review + `validateChanges`, coach chat |
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
-| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (a workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating. Pain is asked on strength days and walks/runs; posture logs save `painRated: false`. Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
+| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (stored one month per key, `logs_v2_YYYY-MM`, migrated once from `logs_v1`, so no value nears Android's ~2 MB read limit; log writes run one at a time. A workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating. Pain is asked on strength days and walks/runs; posture logs save `painRated: false`. Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
 | `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
 | `src/screens/` | Today, Progress, Session, Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
@@ -99,7 +99,8 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
   Interactions API. Keep Gemini's free-tier data-use warning and DeepSeek's note (data stored in China, may be used for
   training) in Settings and on the photo screen: they live in `PROVIDERS` (`note`, `photoWarning`). Models that can't
   read images are marked with `readsPhotos`, and the photo screen offers to continue without photos.
-- Storage keys end in `_v1`. Adding an optional field is fine. If you change a stored shape incompatibly, bump the key
+- `readJson` falls back only when nothing is saved; if saved data can't be read it throws `StorageError`, so a failed read can never be saved over. Keep it that way.
+- Storage keys end in `_v1` (logs: `_v2_` per month). Adding an optional field is fine. If you change a stored shape incompatibly, bump the key
   or migrate old data so existing logs aren't lost. `saveSettings` merges a partial patch, so never overwrite settings
   wholesale.
 

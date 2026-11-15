@@ -24,12 +24,25 @@ export async function setKey(name: KeyName, value: string): Promise<void> {
 
 // ---------- small JSON helpers ----------
 
+/** Thrown when saved data exists but can't be read. Nothing is written over it. */
+export class StorageError extends Error {}
+
+/**
+ * Reads a saved value. Returns `fallback` only when nothing is saved yet. If the value exists but can't be read,
+ * it throws instead: returning the fallback would let the next save overwrite the user's data (e.g. all their logs).
+ */
 async function readJson<T>(key: string, fallback: T): Promise<T> {
+  let raw: string | null;
   try {
-    const raw = await AsyncStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    raw = await AsyncStorage.getItem(key);
   } catch {
-    return fallback;
+    throw new StorageError(`Couldn't read saved data (${key}). Nothing was changed. Restart the app and try again.`);
+  }
+  if (raw == null) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new StorageError(`Saved data (${key}) looks damaged. Nothing was changed.`);
   }
 }
 async function writeJson(key: string, value: unknown) {
@@ -170,27 +183,74 @@ export interface CardioLog {
   notes: string;
 }
 export type AnyLog = WorkoutLog | CardioLog;
-const LOGS = 'logs_v1';
+
+// Logs are stored one month per key ("logs_v2_2026-11"), so no stored value ever grows large. Android can't read a
+// single value over about 2 MB, which one ever-growing list would reach after a year or two of training.
+const LOGS_V1 = 'logs_v1';
+const LOG_MONTH_PREFIX = 'logs_v2_';
+const monthKey = (iso: string) => `${LOG_MONTH_PREFIX}${iso.slice(0, 7)}`;
+
+// Log changes run one at a time, so two saves can never overwrite each other
+let logQueue: Promise<unknown> = Promise.resolve();
+function serialLogs<T>(task: () => Promise<T>): Promise<T> {
+  const run = logQueue.then(task);
+  logQueue = run.catch(() => {});
+  return run;
+}
+
+/** Moves logs from the old single list into monthly keys, once. The old list is removed only after a check. */
+let migrated: Promise<void> | null = null;
+function migrateLogsOnce(): Promise<void> {
+  migrated ??= (async () => {
+    const old = await readJson<AnyLog[] | null>(LOGS_V1, null);
+    if (!old?.length) return;
+    const byMonth = new Map<string, AnyLog[]>();
+    for (const l of old) byMonth.set(monthKey(l.date), [...(byMonth.get(monthKey(l.date)) ?? []), l]);
+    for (const [key, list] of byMonth) {
+      const existing = await readJson<AnyLog[]>(key, []);
+      const ids = new Set(existing.map(l => l.id));
+      await writeJson(key, [...existing, ...list.filter(l => !ids.has(l.id))]);
+    }
+    // Only drop the old list once every log is readable from the new keys
+    const copied = new Set((await readAllMonths()).map(l => l.id));
+    if (old.every(l => copied.has(l.id))) await AsyncStorage.removeItem(LOGS_V1);
+  })();
+  return migrated;
+}
+
+async function readAllMonths(): Promise<AnyLog[]> {
+  const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith(LOG_MONTH_PREFIX));
+  const months = await Promise.all(keys.map(k => readJson<AnyLog[]>(k, [])));
+  return months.flat();
+}
 
 export async function getLogs(): Promise<AnyLog[]> {
-  const logs = await readJson<AnyLog[]>(LOGS, []);
-  return logs.sort((a, b) => b.date.localeCompare(a.date));
+  await migrateLogsOnce();
+  return (await readAllMonths()).sort((a, b) => b.date.localeCompare(a.date));
 }
+
+/** Adds or replaces one log in its month. */
+function putLog(log: AnyLog): Promise<void> {
+  return serialLogs(async () => {
+    await migrateLogsOnce();
+    const key = monthKey(log.date);
+    const list = await readJson<AnyLog[]>(key, []);
+    const i = list.findIndex(l => l.id === log.id);
+    if (i >= 0) list[i] = log;
+    else list.push(log);
+    await writeJson(key, list);
+  });
+}
+
 export async function addLog(log: Omit<WorkoutLog, 'id'> | Omit<CardioLog, 'id'>) {
-  const logs = await getLogs();
-  logs.unshift({ ...log, id: uid() } as AnyLog);
-  await writeJson(LOGS, logs);
+  await putLog({ ...log, id: uid() } as AnyLog);
 }
 /** New id for a workout saved as it goes (see saveWorkout). */
 export const newLogId = uid;
 
 /** Saves a workout, replacing the saved copy with the same id. Used to save a session after every tick. */
 export async function saveWorkout(log: WorkoutLog) {
-  const logs = await getLogs();
-  const i = logs.findIndex(l => l.id === log.id);
-  if (i >= 0) logs[i] = log;
-  else logs.unshift(log);
-  await writeJson(LOGS, logs);
+  await putLog(log);
 }
 
 const sameLocalDay = (iso: string, now = new Date()) => new Date(iso).toDateString() === now.toDateString();
@@ -201,9 +261,14 @@ export async function unfinishedToday(session?: SessionId): Promise<WorkoutLog |
   return (found as WorkoutLog | undefined) ?? null;
 }
 
-export async function deleteLog(id: string) {
-  const logs = await getLogs();
-  await writeJson(LOGS, logs.filter(l => l.id !== id));
+export function deleteLog(id: string): Promise<void> {
+  return serialLogs(async () => {
+    await migrateLogsOnce();
+    for (const key of (await AsyncStorage.getAllKeys()).filter(k => k.startsWith(LOG_MONTH_PREFIX))) {
+      const list = await readJson<AnyLog[]>(key, []);
+      if (list.some(l => l.id === id)) await writeJson(key, list.filter(l => l.id !== id));
+    }
+  });
 }
 export async function logsSince(days: number): Promise<AnyLog[]> {
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
