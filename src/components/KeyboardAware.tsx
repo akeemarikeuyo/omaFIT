@@ -104,6 +104,8 @@ export function KeyboardAwareScrollView({ children, style, onScroll, ...props }:
       <ScrollView
         ref={scroll}
         keyboardShouldPersistTaps="handled"
+        // iOS number pads have no Done key: swiping down (or tapping outside a field) closes the keyboard
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         {...props}
         onScroll={trackScroll}
         scrollEventThrottle={16}

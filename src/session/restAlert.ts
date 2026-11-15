@@ -72,7 +72,8 @@ export async function offerRestAlertsOnce() {
     await setUpOnce();
     const current = await getPermissionsAsync();
     if (!current.granted && current.status === 'undetermined' && current.canAskAgain && (await explain())) {
-      await requestPermissionsAsync();
+      // Alerts and sound only: omaFIT never sets an app-icon badge (iOS would otherwise ask for that too)
+      await requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: false } });
     }
     await saveSettings({ notificationsAsked: true });
   } catch (e) {
