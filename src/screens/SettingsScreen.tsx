@@ -3,12 +3,13 @@ import React, { useCallback, useState } from 'react';
 import { Alert, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AISettings } from '../components/AISettings';
-import { Button, Segmented } from '../components/ui';
+import { Button, Section, Segmented } from '../components/ui';
 import { DEFAULT_LEVEL, LEVELS, levelInfo, levelOf, TrainingLevel } from '../data/level';
-import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS } from '../data/reviewSchedule';
+import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS, WEEKDAYS_LONG } from '../data/reviewSchedule';
+import { currentProvider } from '../api/ai';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
-import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, toggleEquipmentKey, userEquipment } from '../data/library';
+import { BODYWEIGHT_ONLY, DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, SKIPPING_ROPE, toggleEquipmentKey, userEquipment } from '../data/library';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
@@ -24,6 +25,8 @@ const EMPTY_PROFILE: ProfileForm = {
   healthNotes: '',
 };
 
+type SectionKey = 'you' | 'kit' | 'training' | 'ai';
+
 export default function SettingsScreen() {
   const [startDate, setStartDate] = useState('');
   const [bodyweight, setBodyweight] = useState('');
@@ -34,7 +37,9 @@ export default function SettingsScreen() {
   const [profile, setProfile] = useState<ProfileForm>(EMPTY_PROFILE);
   const [equipment, setEquipment] = useState<string[]>(DEFAULT_EQUIPMENT);
   const [equipmentNotes, setEquipmentNotes] = useState('');
-  const [personalTab, setPersonalTab] = useState<'profile' | 'equipment'>('profile');
+  // Which sections are open. All start closed so the page fits on one screen.
+  const [open, setOpen] = useState<Partial<Record<SectionKey, boolean>>>({});
+  const [providerLabel, setProviderLabel] = useState('');
 
   const load = useCallback(async () => {
     const s = await getSettings();
@@ -42,6 +47,7 @@ export default function SettingsScreen() {
     setReviewDay(reviewDayOf(s));
     setLevel(levelOf(s));
     setStartDate(s.startDate);
+    setProviderLabel(currentProvider(s).label);
     setBodyweight(s.bodyweightKg ? String(s.bodyweightKg) : '');
     setEquipment(userEquipment(s));
     setEquipmentNotes(s.equipmentNotes ?? '');
@@ -121,156 +127,161 @@ export default function SettingsScreen() {
     placeholderTextColor: colors.muted,
   });
 
+  const toggle = (key: SectionKey) => setOpen(cur => ({ ...cur, [key]: !cur[key] }));
+  const equipmentSummary = equipment.includes(BODYWEIGHT_ONLY)
+    ? `Bodyweight only${equipment.includes(SKIPPING_ROPE) ? ' + rope' : ''}`
+    : `${equipment.length} ${equipment.length === 1 ? 'item' : 'items'}`;
+  const profileSummary = profile.name.trim() || (Object.values(profile).some(v => v.trim()) ? 'Partly filled in' : 'Not filled in');
+
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
       <KeyboardAwareScrollView contentContainerStyle={ui.content}>
         <Text style={ui.h1}>Settings</Text>
 
-        <AISettings />
-
-        <View style={ui.card}>
-          <Text style={ui.h2}>Training level</Text>
-          <Segmented options={LEVELS.map(l => ({ key: l.id, label: l.label }))} value={level} onChange={chooseLevel} />
-          <Text style={ui.muted}>{levelInfo(level).who}</Text>
+        <Section title="You" summary={profileSummary} open={!!open.you} onToggle={() => toggle('you')}>
           <Text style={ui.small}>
-            Your AI coach fits exercise difficulty, sets and session length to this from the next plan, review or chat.
-            Not sure? Start with Beginner and move up when it feels easy.
+            Optional. Helps your AI coach personalise your posture and workout plan. Saved on this phone only, and sent
+            to your AI provider when you chat or run a review.
           </Text>
-        </View>
-
-        <View style={ui.card}>
-          <Text style={ui.h2}>Weekly review day</Text>
-          <Text style={ui.small}>
-            Your weekly AI review opens on this day and stays open until you run it, once a week. Sunday suits most
-            plans: it's the rest day, so changes are ready for Monday.
-          </Text>
-          <Segmented options={WEEKDAYS.map((label, key) => ({ key, label }))} value={reviewDay} onChange={chooseReviewDay} />
-        </View>
-
-        <View style={ui.card}>
-          <Text style={ui.h2}>Rest between sets</Text>
-          <Text style={ui.small}>
-            Used on strength days. Minimum {MIN_REST_SECONDS} s. The posture routine keeps its short 20 s gaps.
-          </Text>
-          <View style={[ui.row, { flexWrap: 'wrap' }]}>
-            {REST_OPTIONS.map(s => (
-              <Button
-                key={s}
-                title={`${s}s`}
-                kind={s === rest ? 'primary' : 'secondary'}
-                onPress={() => chooseRest(s)}
-                style={{ paddingHorizontal: space.md, paddingVertical: 9 }}
-              />
-            ))}
-          </View>
-          {!REST_OPTIONS.includes(rest) && <Text style={[ui.small, { color: colors.accent }]}>Current: {rest} s</Text>}
+          <TextInput style={ui.input} placeholder="Name" {...field('name')} />
           <View style={ui.row}>
+            <TextInput style={[ui.input, { flex: 1 }]} placeholder="Age" keyboardType="number-pad" {...field('age')} />
             <TextInput
               style={[ui.input, { flex: 1 }]}
-              value={customRest}
-              onChangeText={setCustomRest}
+              placeholder="Hours sitting / day"
               keyboardType="number-pad"
-              placeholder="Other (seconds)"
+              {...field('sittingHoursPerDay')}
+            />
+          </View>
+          <TextInput style={ui.input} placeholder="Work, e.g. software engineer" {...field('work')} />
+          <TextInput style={ui.input} placeholder="Goals, e.g. better posture, more strength" {...field('goals')} />
+          <TextInput
+            style={[ui.input, { minHeight: 60, textAlignVertical: 'top' }]}
+            multiline
+            placeholder="Posture notes, e.g. forward head, rounded shoulders"
+            {...field('postureNotes')}
+          />
+          <TextInput
+            style={[ui.input, { minHeight: 60, textAlignVertical: 'top' }]}
+            multiline
+            placeholder="Health notes, e.g. old knee injury, occasional lower back pain"
+            {...field('healthNotes')}
+          />
+          <Button title="Save profile" kind="secondary" onPress={saveProfile} />
+        </Section>
+
+        <Section
+          title="Equipment & level"
+          summary={`${levelInfo(level).label} · ${equipmentSummary}`}
+          open={!!open.kit}
+          onToggle={() => toggle('kit')}
+        >
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Training level</Text>
+            <Segmented options={LEVELS.map(l => ({ key: l.id, label: l.label }))} value={level} onChange={chooseLevel} />
+            <Text style={ui.muted}>{levelInfo(level).who}</Text>
+            <Text style={ui.small}>
+              Your AI coach fits exercise difficulty, sets and session length to this. Not sure? Start with Beginner and
+              move up when it feels easy.
+            </Text>
+          </View>
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Your equipment</Text>
+            <Text style={ui.small}>
+              The AI only picks exercises you can do with this. Pick "Bodyweight only" if you have no gym equipment.
+              Bands can stand in for cables, and dumbbells for kettlebells.
+            </Text>
+            <View style={[ui.row, { flexWrap: 'wrap' }]}>
+              {EQUIPMENT_OPTIONS.map(o => (
+                <Button
+                  key={o.key}
+                  title={o.label}
+                  kind={equipment.includes(o.key) ? 'primary' : 'secondary'}
+                  onPress={() => toggleEquipment(o.key)}
+                  style={{ paddingHorizontal: space.md, paddingVertical: 8 }}
+                />
+              ))}
+            </View>
+            <TextInput
+              style={ui.input}
+              value={equipmentNotes}
+              onChangeText={setEquipmentNotes}
+              placeholder="Notes, e.g. flat bench, dumbbells up to 20 kg"
               placeholderTextColor={colors.muted}
             />
-            <Button title="Set" kind="secondary" onPress={saveCustomRest} disabled={!customRest.trim()} />
+            <Button title="Save equipment" kind="secondary" onPress={saveEquipment} />
           </View>
-        </View>
+        </Section>
 
-        <View style={ui.card}>
-          <Text style={ui.h2}>Program</Text>
-          <Text style={ui.h3}>Start date</Text>
-          <Text style={ui.small}>Sets which week of the walking/running plan you are on.</Text>
-          <TextInput
-            style={ui.input}
-            value={startDate}
-            onChangeText={setStartDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors.muted}
-          />
-          <Text style={[ui.h3, { marginTop: space.sm }]}>Bodyweight (kg, optional)</Text>
-          <TextInput
-            style={ui.input}
-            value={bodyweight}
-            onChangeText={setBodyweight}
-            keyboardType="decimal-pad"
-            placeholder="e.g. 62"
-            placeholderTextColor={colors.muted}
-          />
-          <Button title="Save" kind="secondary" onPress={saveProgram} />
-        </View>
-
-        <View style={ui.card}>
-          <Segmented
-            options={[
-              { key: 'profile', label: 'About you' },
-              { key: 'equipment', label: 'Your equipment' },
-            ]}
-            value={personalTab}
-            onChange={setPersonalTab}
-          />
-
-          {personalTab === 'profile' ? (
-            <>
-              <Text style={ui.small}>
-                Optional. Helps your AI coach personalise your posture and workout plan. Saved on this phone only, and sent
-                to your AI provider when you chat or run a review.
-              </Text>
-              <TextInput style={ui.input} placeholder="Name" {...field('name')} />
-              <View style={ui.row}>
-                <TextInput style={[ui.input, { flex: 1 }]} placeholder="Age" keyboardType="number-pad" {...field('age')} />
-                <TextInput
-                  style={[ui.input, { flex: 1 }]}
-                  placeholder="Hours sitting / day"
-                  keyboardType="number-pad"
-                  {...field('sittingHoursPerDay')}
+        <Section
+          title="Training"
+          summary={`${rest} s rest · review on ${WEEKDAYS_LONG[reviewDay]}`}
+          open={!!open.training}
+          onToggle={() => toggle('training')}
+        >
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Rest between sets</Text>
+            <Text style={ui.small}>
+              Used on strength days. Minimum {MIN_REST_SECONDS} s. The posture routine keeps its short 20 s gaps.
+            </Text>
+            <View style={[ui.row, { flexWrap: 'wrap' }]}>
+              {REST_OPTIONS.map(s => (
+                <Button
+                  key={s}
+                  title={`${s}s`}
+                  kind={s === rest ? 'primary' : 'secondary'}
+                  onPress={() => chooseRest(s)}
+                  style={{ paddingHorizontal: space.md, paddingVertical: 9 }}
                 />
-              </View>
-              <TextInput style={ui.input} placeholder="Work, e.g. software engineer" {...field('work')} />
-              <TextInput style={ui.input} placeholder="Goals, e.g. better posture, more strength" {...field('goals')} />
+              ))}
+            </View>
+            {!REST_OPTIONS.includes(rest) && <Text style={[ui.small, { color: colors.accent }]}>Current: {rest} s</Text>}
+            <View style={ui.row}>
               <TextInput
-                style={[ui.input, { minHeight: 60, textAlignVertical: 'top' }]}
-                multiline
-                placeholder="Posture notes, e.g. forward head, rounded shoulders"
-                {...field('postureNotes')}
-              />
-              <TextInput
-                style={[ui.input, { minHeight: 60, textAlignVertical: 'top' }]}
-                multiline
-                placeholder="Health notes, e.g. old knee injury, occasional lower back pain"
-                {...field('healthNotes')}
-              />
-              <Button title="Save profile" kind="secondary" onPress={saveProfile} />
-            </>
-          ) : (
-            <>
-              <Text style={ui.small}>
-                The AI only picks exercises you can do with this. Bodyweight exercises are always included; pick
-                "Bodyweight only" if you have no gym equipment. Bands can stand in for cables, and dumbbells for
-                kettlebells.
-              </Text>
-              <View style={[ui.row, { flexWrap: 'wrap' }]}>
-                {EQUIPMENT_OPTIONS.map(o => (
-                  <Button
-                    key={o.key}
-                    title={o.label}
-                    kind={equipment.includes(o.key) ? 'primary' : 'secondary'}
-                    onPress={() => toggleEquipment(o.key)}
-                    style={{ paddingHorizontal: space.md, paddingVertical: 8 }}
-                  />
-                ))}
-              </View>
-              <TextInput
-                style={ui.input}
-                value={equipmentNotes}
-                onChangeText={setEquipmentNotes}
-                placeholder="Notes, e.g. flat bench, dumbbells up to 20 kg"
+                style={[ui.input, { flex: 1 }]}
+                value={customRest}
+                onChangeText={setCustomRest}
+                keyboardType="number-pad"
+                placeholder="Other (seconds)"
                 placeholderTextColor={colors.muted}
               />
-              <Button title="Save equipment" kind="secondary" onPress={saveEquipment} />
-            </>
-          )}
-        </View>
+              <Button title="Set" kind="secondary" onPress={saveCustomRest} disabled={!customRest.trim()} />
+            </View>
+          </View>
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Weekly review day</Text>
+            <Text style={ui.small}>
+              Your weekly AI review opens on this day and stays open until you run it, once a week. Sunday suits most
+              plans: it's the rest day, so changes are ready for Monday.
+            </Text>
+            <Segmented options={WEEKDAYS.map((label, key) => ({ key, label }))} value={reviewDay} onChange={chooseReviewDay} />
+          </View>
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Program start date</Text>
+            <Text style={ui.small}>Sets which week of the walking/running plan you are on.</Text>
+            <TextInput
+              style={ui.input}
+              value={startDate}
+              onChangeText={setStartDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.muted}
+            />
+            <Text style={ui.h3}>Bodyweight (kg, optional)</Text>
+            <TextInput
+              style={ui.input}
+              value={bodyweight}
+              onChangeText={setBodyweight}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 62"
+              placeholderTextColor={colors.muted}
+            />
+            <Button title="Save" kind="secondary" onPress={saveProgram} />
+          </View>
+        </Section>
+
+        <Section title="AI coach" summary={providerLabel} open={!!open.ai} onToggle={() => toggle('ai')}>
+          <AISettings embedded />
+        </Section>
 
         <Text style={ui.small}>
           omaFIT is free and open source. The coach gives training suggestions, not medical advice.

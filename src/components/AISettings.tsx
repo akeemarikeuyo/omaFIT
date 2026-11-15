@@ -19,7 +19,8 @@ import { Button } from './ui';
 const mask = (k: string | null) => (k ? `••••${k.slice(-4)}` : 'not set');
 
 /** Settings card: pick an AI provider, save its key, optionally pick a model, test the connection. */
-export function AISettings() {
+/** embedded: shown inside a Settings section, so no card or heading of its own. */
+export function AISettings({ embedded = false }: { embedded?: boolean }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [provider, setProvider] = useState<ProviderId>(DEFAULT_PROVIDER);
   const [showGuide, setShowGuide] = useState<boolean | null>(null);
@@ -97,8 +98,8 @@ export function AISettings() {
   };
 
   return (
-    <View style={ui.card}>
-      <Text style={ui.h2}>AI coach</Text>
+    <View style={embedded ? { gap: space.md } : ui.card}>
+      {!embedded && <Text style={ui.h2}>AI coach</Text>}
       <Text style={ui.muted}>
         Pick the AI that powers Build my plan, the weekly review and Coach chat, and add your own API key for it.
         Everything else in omaFIT works without one.
