@@ -3,7 +3,8 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChartMode, DailyChart } from '../components/DailyChart';
-import { painColor, Segmented } from '../components/ui';
+import { LogRow } from '../components/LogRow';
+import { Button, painColor, Segmented } from '../components/ui';
 import { dailyStats, encouragement, painPlaces, summary } from '../data/progress';
 import { AnyLog, getLogs } from '../storage/store';
 import { colors, space, ui } from '../theme';
@@ -13,6 +14,9 @@ const MODES: { id: ChartMode; label: string }[] = [
   { id: 'walk', label: 'Walk min' },
   { id: 'pain', label: 'Pain' },
 ];
+/** History entries shown at a time */
+const HISTORY_PAGE = 20;
+
 const RANGES = [
   { days: 14, label: '2 weeks' },
   { days: 30, label: '30 days' },
@@ -22,6 +26,10 @@ export default function ProgressScreen() {
   const [logs, setLogs] = useState<AnyLog[]>([]);
   const [mode, setMode] = useState<ChartMode>('sets');
   const [range, setRange] = useState(14);
+  const [historyCount, setHistoryCount] = useState(HISTORY_PAGE);
+  const reload = useCallback(() => {
+    getLogs().then(setLogs);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -94,6 +102,16 @@ export default function ProgressScreen() {
           <Tile value={s.totalWorkouts} label="workouts logged" />
           <Tile value={s.totalWalkMinutes} label="walk minutes" />
         </View>
+
+        <Text style={[ui.h2, { marginTop: space.md }]}>History</Text>
+        <Text style={ui.small}>Tap an entry to see what you did. Long-press to delete it.</Text>
+        {logs.length === 0 && <Text style={ui.muted}>Nothing logged yet.</Text>}
+        {logs.slice(0, historyCount).map(l => (
+          <LogRow key={l.id} log={l} onDeleted={reload} />
+        ))}
+        {logs.length > historyCount && (
+          <Button title="Show more" kind="secondary" onPress={() => setHistoryCount(n => n + HISTORY_PAGE)} />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
