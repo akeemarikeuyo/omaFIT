@@ -1,5 +1,6 @@
 import { effectivePlan, exerciseLabel, planAsText } from '../data/effective';
 import { BODYWEIGHT_ONLY, candidates, EQUIPMENT_OPTIONS, SKIPPING_ROPE, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
+import { levelInfo, levelOf } from '../data/level';
 import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
 import { reviewStatus } from '../data/reviewSchedule';
 import { SessionId } from '../data/plan';
@@ -58,6 +59,7 @@ function athleteProfile(s: Settings): string {
     p.postureNotes?.trim() ? `Posture notes (self-reported): ${p.postureNotes.trim()}` : null,
     p.healthNotes?.trim() ? `Health / back notes (self-reported): ${p.healthNotes.trim()}` : null,
     s.bodyweightKg ? `Bodyweight: ${s.bodyweightKg} kg.` : null,
+    `Training level (set by the user): ${levelInfo(levelOf(s)).aiGuide} Fit sets, reps, session length and progression to this level.`,
     equipmentText(s),
     SCHEDULE,
   ]
@@ -86,7 +88,7 @@ Coaching rules you must follow:
  * It only changes when the equipment changes, so repeat requests can be served from the provider's prompt cache.
  */
 export function librarySystemBlock(s: Settings) {
-  const { posture, strength } = candidates(userEquipment(s));
+  const { posture, strength } = candidates(userEquipment(s), levelOf(s));
   return {
     text:
       'EXERCISE LIBRARY. You may only add or swap in exercises from these lists, using the exact id (first column). ' +
@@ -221,6 +223,7 @@ function heaviestRecent(logs: AnyLog[], exerciseId: string): number | null {
 
 /** App-side safety checks on the AI's suggestions, so a bad suggestion can't slip through. */
 async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
+  const level = levelOf(await getSettings());
   const plan = await effectivePlan();
   const sessionOf = new Map<string, SessionId>();
   for (const [sid, exs] of Object.entries(plan)) for (const e of exs) sessionOf.set(e.id, sid as SessionId);
@@ -259,7 +262,7 @@ async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
     const change: ExerciseOverride = {};
     if (c.swap_to) {
       const lib = findDemo(c.swap_to.library_id);
-      const why = lib ? rejectReason(lib, session, have) : 'Not in the exercise library.';
+      const why = lib ? rejectReason(lib, session, have, level) : 'Not in the exercise library.';
       if (!lib || why) {
         rejected.push({ exerciseId: c.exercise_id, why: `Swap blocked: ${why}` });
         continue;

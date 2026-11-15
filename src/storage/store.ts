@@ -84,6 +84,8 @@ export interface Settings {
   restSeconds?: number;
   /** The one-time "turn on notifications?" question has been shown (see src/session/restAlert.ts). */
   notificationsAsked?: boolean;
+  /** How experienced the user is; shapes how hard the AI makes the plan. Missing = beginner. See src/data/level.ts. */
+  level?: 'beginner' | 'intermediate' | 'advanced';
   /** Day the weekly review unlocks, 0 = Sunday … 6 = Saturday. Missing = Sunday. See src/data/reviewSchedule.ts. */
   reviewDay?: number;
   /** When "Reset plan to original" was last used: unlocks one extra weekly review. */

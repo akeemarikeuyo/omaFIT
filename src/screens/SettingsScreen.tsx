@@ -4,6 +4,7 @@ import { Alert, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AISettings } from '../components/AISettings';
 import { Button, Segmented } from '../components/ui';
+import { DEFAULT_LEVEL, LEVELS, levelInfo, levelOf, TrainingLevel } from '../data/level';
 import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS } from '../data/reviewSchedule';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
@@ -28,6 +29,7 @@ export default function SettingsScreen() {
   const [bodyweight, setBodyweight] = useState('');
   const [rest, setRest] = useState(DAY_A.restSeconds);
   const [reviewDay, setReviewDay] = useState(DEFAULT_REVIEW_DAY);
+  const [level, setLevel] = useState<TrainingLevel>(DEFAULT_LEVEL);
   const [customRest, setCustomRest] = useState('');
   const [profile, setProfile] = useState<ProfileForm>(EMPTY_PROFILE);
   const [equipment, setEquipment] = useState<string[]>(DEFAULT_EQUIPMENT);
@@ -38,6 +40,7 @@ export default function SettingsScreen() {
     const s = await getSettings();
     setRest(Math.max(MIN_REST_SECONDS, s.restSeconds ?? DAY_A.restSeconds));
     setReviewDay(reviewDayOf(s));
+    setLevel(levelOf(s));
     setStartDate(s.startDate);
     setBodyweight(s.bodyweightKg ? String(s.bodyweightKg) : '');
     setEquipment(userEquipment(s));
@@ -54,6 +57,11 @@ export default function SettingsScreen() {
     });
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const chooseLevel = async (l: TrainingLevel) => {
+    setLevel(l);
+    await saveSettings({ level: l });
+  };
 
   const chooseReviewDay = async (day: number) => {
     setReviewDay(day);
@@ -119,6 +127,16 @@ export default function SettingsScreen() {
         <Text style={ui.h1}>Settings</Text>
 
         <AISettings />
+
+        <View style={ui.card}>
+          <Text style={ui.h2}>Training level</Text>
+          <Segmented options={LEVELS.map(l => ({ key: l.id, label: l.label }))} value={level} onChange={chooseLevel} />
+          <Text style={ui.muted}>{levelInfo(level).who}</Text>
+          <Text style={ui.small}>
+            Your AI coach fits exercise difficulty, sets and session length to this from the next plan, review or chat.
+            Not sure? Start with Beginner and move up when it feels easy.
+          </Text>
+        </View>
 
         <View style={ui.card}>
           <Text style={ui.h2}>Weekly review day</Text>

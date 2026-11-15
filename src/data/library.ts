@@ -2,6 +2,7 @@
 // bundled free-exercise-db index (so every pick has a demo), and only ones that pass these checks.
 import { ALL, DemoExercise, findDemo } from '../api/demos';
 import type { Settings } from '../storage/store';
+import { DEFAULT_LEVEL, levelInfo, TrainingLevel } from './level';
 import type { SessionId } from './plan';
 
 /** No gym equipment at all: picking it clears the gym items (a skipping rope can stay). */
@@ -51,7 +52,7 @@ const POSTURE_EQUIPMENT = ['body only', 'bands', 'foam roll', 'exercise ball'];
 const BANNED_BARBELL = /squat|deadlift|good ?morning|clean|snatch|jerk|rack pull/i;
 
 /** Why an exercise can't go into this session, or null if it can. */
-export function rejectReason(ex: DemoExercise, session: SessionId, have: string[]): string | null {
+export function rejectReason(ex: DemoExercise, session: SessionId, have: string[], level: TrainingLevel = DEFAULT_LEVEL): string | null {
   if (ROPE_EXERCISES.has(ex.id)) {
     if (!have.includes(SKIPPING_ROPE)) return "Needs a skipping rope, which isn't in your equipment.";
     if (session === 'posture') return 'Skipping is for strength days (as a warm-up or finisher), not the posture routine.';
@@ -59,6 +60,8 @@ export function rejectReason(ex: DemoExercise, session: SessionId, have: string[
   }
   if (!equipmentFit(ex.equipment, have)) return `Needs ${ex.equipment}, which isn't in your equipment.`;
   if (ex.level === 'expert') return 'Expert-level exercise.';
+  const lvl = levelInfo(level);
+  if (!lvl.libraryLevels.includes(ex.level)) return `${ex.level[0].toUpperCase()}${ex.level.slice(1)}-level exercise; your level is ${lvl.label}.`;
   if (ex.equipment === 'barbell' && BANNED_BARBELL.test(ex.name)) return 'Heavy barbell squats and deadlifts are not used in omaFIT.';
   if (session === 'posture') {
     if (!POSTURE_CATEGORIES.includes(ex.category)) return 'Not a posture or mobility exercise.';
@@ -71,10 +74,10 @@ export function rejectReason(ex: DemoExercise, session: SessionId, have: string[
 }
 
 /** Library exercises the AI may choose from, for the given equipment. */
-export function candidates(have: string[]): { posture: DemoExercise[]; strength: DemoExercise[] } {
+export function candidates(have: string[], level: TrainingLevel = DEFAULT_LEVEL): { posture: DemoExercise[]; strength: DemoExercise[] } {
   return {
-    posture: ALL.filter(e => !rejectReason(e, 'posture', have)),
-    strength: ALL.filter(e => !rejectReason(e, 'A', have)),
+    posture: ALL.filter(e => !rejectReason(e, 'posture', have, level)),
+    strength: ALL.filter(e => !rejectReason(e, 'A', have, level)),
   };
 }
 
