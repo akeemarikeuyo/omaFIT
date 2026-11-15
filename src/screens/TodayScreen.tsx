@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { Button, Pill } from '../components/ui';
+import { effectivePlan } from '../data/effective';
+import { planMisfits } from '../data/library';
 import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
@@ -33,12 +35,19 @@ export default function TodayScreen() {
   const [logs, setLogs] = useState<AnyLog[]>([]);
   const [open, setOpen] = useState<WorkoutLog | null>(null);
 
+  const [misfits, setMisfits] = useState<string[]>([]);
+
   const load = useCallback(async () => {
     const s = await getSettings();
     setWeek(programWeek(s.startDate));
     setNext(await nextStrengthSession());
     setLogs(await getLogs());
     setOpen(await unfinishedToday());
+    // Only once the user has picked their own equipment: the default plan fits the default kit
+    if (s.equipment) {
+      const plan = await effectivePlan();
+      setMisfits(planMisfits([...plan.posture, ...plan.A, ...plan.B], s.equipment));
+    } else setMisfits([]);
   }, []);
 
   useFocusEffect(
@@ -133,6 +142,17 @@ export default function TodayScreen() {
           <Text style={ui.muted}>{encouragement(stats)}</Text>
           <Text style={{ color: colors.accent, fontWeight: '700' }}>See progress →</Text>
         </Pressable>
+
+        {misfits.length > 0 && (
+          <Pressable onPress={() => nav.navigate('PlanBuilder')} style={[ui.card, { borderColor: colors.warn }]}>
+            <Text style={[ui.h3, { color: colors.warn }]}>Your plan needs equipment you don't have</Text>
+            <Text style={ui.muted}>
+              {misfits.length === 1 ? '1 exercise' : `${misfits.length} exercises`} (e.g. {misfits[0]}) can't be done with
+              your equipment. Build my plan swaps them for ones you can do.
+            </Text>
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>Build my plan →</Text>
+          </Pressable>
+        )}
 
         {painHigh && (
           <View style={[ui.card, { borderColor: colors.warn }]}>

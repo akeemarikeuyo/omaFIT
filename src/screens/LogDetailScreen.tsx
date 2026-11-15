@@ -13,7 +13,7 @@ import { colors, space, ui } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'LogDetail'>;
 
 const EFFORT = ['', 'very easy', 'easy', 'moderate', 'hard', 'nothing left'];
-const CARDIO = { walk: 'Walk', 'run-walk': 'Run-walk', run: 'Run' } as const;
+const CARDIO = { walk: 'Walk', 'run-walk': 'Run-walk', run: 'Run', skipping: 'Skipping' } as const;
 
 const setText = (s: SetLog) =>
   [s.weightKg != null ? `${s.weightKg} kg` : null, s.reps != null ? `${s.reps}` : null].filter(Boolean).join(' × ') || '✓';

@@ -173,7 +173,7 @@ export interface CardioLog {
   id: string;
   kind: 'cardio';
   date: string;
-  type: 'walk' | 'run-walk' | 'run';
+  type: 'walk' | 'run-walk' | 'run' | 'skipping';
   minutes: number;
   /** Lower back score, as on WorkoutLog. Read pain with painsOf(). */
   backPain: number;

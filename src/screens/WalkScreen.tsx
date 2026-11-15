@@ -17,6 +17,7 @@ const TYPES: { key: CardioType; label: string }[] = [
   { key: 'walk', label: 'Walk' },
   { key: 'run-walk', label: 'Run-walk' },
   { key: 'run', label: 'Run' },
+  { key: 'skipping', label: 'Skipping' },
 ];
 
 export default function WalkScreen({ navigation }: Props) {

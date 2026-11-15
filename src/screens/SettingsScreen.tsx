@@ -7,7 +7,7 @@ import { Button, Segmented } from '../components/ui';
 import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS } from '../data/reviewSchedule';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
-import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, userEquipment } from '../data/library';
+import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, toggleEquipmentKey, userEquipment } from '../data/library';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
@@ -100,8 +100,7 @@ export default function SettingsScreen() {
     Alert.alert('Saved', 'Your coach will use this from the next chat or review.');
   };
 
-  const toggleEquipment = (key: string) =>
-    setEquipment(cur => (cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]));
+  const toggleEquipment = (key: string) => setEquipment(cur => toggleEquipmentKey(cur, key));
 
   const saveEquipment = async () => {
     await saveSettings({ equipment, equipmentNotes: equipmentNotes.trim() || undefined });
@@ -228,8 +227,9 @@ export default function SettingsScreen() {
           ) : (
             <>
               <Text style={ui.small}>
-                The AI only picks exercises you can do with this. Bodyweight is always included. Bands can stand in for
-                cables, and dumbbells for kettlebells.
+                The AI only picks exercises you can do with this. Bodyweight exercises are always included; pick
+                "Bodyweight only" if you have no gym equipment. Bands can stand in for cables, and dumbbells for
+                kettlebells.
               </Text>
               <View style={[ui.row, { flexWrap: 'wrap' }]}>
                 {EQUIPMENT_OPTIONS.map(o => (

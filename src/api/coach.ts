@@ -1,5 +1,5 @@
 import { effectivePlan, exerciseLabel, planAsText } from '../data/effective';
-import { candidates, EQUIPMENT_OPTIONS, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
+import { BODYWEIGHT_ONLY, candidates, EQUIPMENT_OPTIONS, SKIPPING_ROPE, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
 import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
 import { reviewStatus } from '../data/reviewSchedule';
 import { SessionId } from '../data/plan';
@@ -34,8 +34,15 @@ const SCHEDULE =
 function equipmentText(s: Settings): string {
   const notes = s.equipmentNotes?.trim() ? ` Notes from the user: ${s.equipmentNotes.trim()}.` : '';
   if (!s.equipment) return `Equipment ONLY (default home kit): ${DEFAULT_KIT}${notes}`;
-  const labels = EQUIPMENT_OPTIONS.filter(o => s.equipment!.includes(o.key)).map(o => o.label.toLowerCase());
-  return `Equipment ONLY: bodyweight${labels.length ? `, ${labels.join(', ')}` : ''}.${notes} Nothing else.`;
+  const have = s.equipment;
+  const labels = EQUIPMENT_OPTIONS.filter(o => have.includes(o.key) && o.key !== BODYWEIGHT_ONLY && o.key !== SKIPPING_ROPE).map(o =>
+    o.label.toLowerCase(),
+  );
+  const base = have.includes(BODYWEIGHT_ONLY) || !labels.length ? 'bodyweight only (no gym equipment)' : `bodyweight, ${labels.join(', ')}`;
+  const rope = have.includes(SKIPPING_ROPE)
+    ? ' Also a skipping rope: Rope_Jumping may be added on strength days as a short warm-up or finisher (e.g. 3 rounds of 30-60 s), never as a main exercise.'
+    : '';
+  return `Equipment ONLY: ${base}.${rope}${notes} Nothing else.`;
 }
 
 /** Built from the profile the user fills in under Settings; nothing personal lives in the code. */
