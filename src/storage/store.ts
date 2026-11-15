@@ -465,9 +465,18 @@ export async function markProposalApplied(id: string) {
 
 // ---------- coach chat ----------
 
+/** Plan changes the coach suggested in chat, already safety-checked. Applied only if the user taps Apply. */
+export interface ChatProposal {
+  changes: ReviewChange[];
+  /** Suggestions the app blocked, with the reason */
+  rejected: { exerciseId: string; why: string }[];
+  status: 'pending' | 'applied' | 'dismissed';
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  proposal?: ChatProposal;
 }
 const CHAT = 'chat_v1';
 export const getChat = () => readJson<ChatMessage[]>(CHAT, []);

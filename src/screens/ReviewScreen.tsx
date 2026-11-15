@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { runWeeklyReview } from '../api/coach';
 import { Button, Pill } from '../components/ui';
-import { exerciseLabel } from '../data/effective';
+import { describeChange, exerciseLabel } from '../data/effective';
 import { DEFAULT_REVIEW_DAY, reviewDayOf, reviewStatus, ReviewStatus, WEEKDAYS, WEEKDAYS_LONG } from '../data/reviewSchedule';
 import { RootStackParamList } from '../navigation';
 import {
@@ -17,7 +17,6 @@ import {
   markReviewApplied,
   mergeOverrides,
   Overrides,
-  ReviewChange,
   ReviewRecord,
   resetPlan,
   saveReview,
@@ -26,16 +25,6 @@ import { colors, space, ui } from '../theme';
 
 const exerciseName = exerciseLabel;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function describe(c: ReviewChange) {
-  const parts: string[] = [];
-  if (c.change.swapTo) parts.push(`swap to ${c.change.swapTo.name}`);
-  if (c.change.sets != null) parts.push(`${c.change.sets} sets`);
-  if (c.change.reps) parts.push(`${c.change.reps} reps`);
-  if (c.change.targetWeightKg != null) parts.push(`${c.change.targetWeightKg} kg`);
-  if (c.change.note) parts.push(`note: "${c.change.note}"`);
-  return parts.join(' · ') || 'no change';
-}
 
 export default function ReviewScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -170,7 +159,7 @@ export default function ReviewScreen() {
                 {r.changes.map((c, i) => (
                   <View key={i} style={{ backgroundColor: colors.cardAlt, borderRadius: 10, padding: space.md, gap: 2 }}>
                     <Text style={ui.h3}>{exerciseName(c.exerciseId)}</Text>
-                    <Text style={[ui.body, { color: colors.accent }]}>{describe(c)}</Text>
+                    <Text style={[ui.body, { color: colors.accent }]}>{describeChange(c)}</Text>
                     <Text style={ui.small}>{c.reason}</Text>
                   </View>
                 ))}

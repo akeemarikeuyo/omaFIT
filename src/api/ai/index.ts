@@ -114,7 +114,7 @@ export async function askAI(req: AIRequest): Promise<AIResult> {
   const key = await getKey(provider.id);
   if (!key) throw new AIError(`Add your ${provider.label} API key in Settings first.`);
   const result = await provider.adapter.send(req, { key, model: currentModel(settings) });
-  if (req.tool && !result.toolInput) {
+  if (req.tool && !req.toolOptional && !result.toolInput) {
     throw new AIError(`${provider.label} didn't return a usable answer. Try again, or try another model in Settings.`);
   }
   return result;

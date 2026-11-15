@@ -26,6 +26,8 @@ export interface AIRequest {
   messages: AIMessage[];
   /** When set, the answer must come back as a call to this tool */
   tool?: AITool;
+  /** The tool is welcome but not required: a plain text answer is fine too (used by coach chat) */
+  toolOptional?: boolean;
   maxTokens: number;
   effort?: Effort;
 }

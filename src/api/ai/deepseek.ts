@@ -88,7 +88,7 @@ async function call(req: AIRequest, key: string, model: string, forceTool: boole
 export const deepseek: ProviderAdapter = {
   async send(req, { key, model }) {
     const first = await call(req, key, model, false);
-    if (!req.tool || first.toolInput !== undefined) return first;
+    if (!req.tool || first.toolInput !== undefined || (req.toolOptional && first.text)) return first;
     // It answered in text instead of calling the tool: ask again with thinking off and the tool forced
     return call(req, key, model, true);
   },
