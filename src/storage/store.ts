@@ -165,8 +165,8 @@ export interface WorkoutLog {
 export const isUnfinished = (l: AnyLog): l is WorkoutLog => l.kind === 'session' && l.finished === false;
 
 /**
- * Whether this log has a pain rating. Strength days and walks/runs ask; the posture routine doesn't and is saved with
- * `painRated: false`, so its empty pain list never counts as "no pain". Older logs always asked.
+ * Whether this log has a pain rating. Every session and walk asks now. A few logs from earlier test builds were saved
+ * with `painRated: false` (not asked), so their empty pain list never counts as "no pain".
  */
 export const isPainRated = (l: AnyLog) => !isUnfinished(l) && l.painRated !== false;
 export interface CardioLog {
