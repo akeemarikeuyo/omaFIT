@@ -72,7 +72,9 @@ export async function offerRestAlertsOnce() {
     if ((await getSettings()).notificationsAsked) return;
     await setUpOnce();
     const current = await getPermissionsAsync();
-    if (!current.granted && current.status === 'undetermined' && current.canAskAgain) {
+    // Android 13+ reports a never-asked notification permission as "denied" with canAskAgain, not "undetermined",
+    // so ask whenever it isn't granted and the system still lets us ask
+    if (!current.granted && current.canAskAgain) {
       const answer = await explain();
       // Only a real answer counts: if the dialog was closed some other way, ask again next launch
       if (answer === 'closed') return;
