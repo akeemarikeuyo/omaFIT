@@ -39,7 +39,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 ## Layout
 | Path | What |
 | --- | --- |
-| `App.tsx` | Navigation: tabs (Today, Progress, Review, Coach, Settings) + stack (Session, Walk, LogDetail, Exercise, PlanBuilder); launch screen |
+| `App.tsx` | Navigation: tabs (Today, Progress, Review, Coach, Settings) + stack (Session, Walk, LogDetail, Exercise, PlanBuilder, Setup); launch screen; first-run Setup for new installs (skipped when logs exist) |
 | `src/data/plan.ts` | Baseline plan: posture routine, Day A, Day B, walking plan, weekday schedule, red-flag text. Exercises can have `demoId` (photos) and `videoUrl` (YouTube Short). |
 | `src/data/effective.ts` | Baseline plan + approved changes (overrides incl. `removed`, swaps with `demoId`, AI-added library exercises); `effectivePlan()`, `exerciseLabel()`, `planAsText()` |
 | `src/data/library.ts` | What the AI may pick: `rejectReason()` (equipment fit with substitutes, banned lifts, the user's training level, category, posture-routine limits; skipping rope as a strength-day warm-up/finisher only), "Bodyweight only" equipment, `candidates()`, `upperBodyBalance()`, added-exercise ids `lib-<session>-<libraryId>` |
@@ -51,8 +51,8 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
 | `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (stored one month per key, `logs_v2_YYYY-MM`, migrated once from `logs_v1`, so no value nears Android's ~2 MB read limit; log writes run one at a time. A workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating. Pain is asked after every session and walk (a few older test-build logs have `painRated: false`). Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
-| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard) |
-| `src/screens/` | Today, Progress, Session, Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
+| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard), `LogRow.tsx` (one logged entry in a list), `Section` in `ui.tsx` (Settings' open/close sections) |
+| `src/screens/` | Setup (first-run: welcome, level, equipment, AI key; sets `Settings.onboarded`), Today, Progress (incl. History), Session, Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |
 | `scripts/make-icons.js` | Dependency-free PNG icon generator: builds every app icon, the splash image and `assets/logo-mark.png` (used by `Brand.tsx`) from the master `assets/logo.png`. To change the logo, replace the master and run `npm run icons`. |

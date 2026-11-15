@@ -82,6 +82,8 @@ export interface Settings {
   bodyweightKg?: number;
   /** Rest between sets on strength days. Missing = the plan's default. */
   restSeconds?: number;
+  /** First-run setup is done (or skipped for people who already had logs). See SetupScreen. */
+  onboarded?: boolean;
   /** The one-time "turn on notifications?" question has been shown (see src/session/restAlert.ts). */
   notificationsAsked?: boolean;
   /** How experienced the user is; shapes how hard the AI makes the plan. Missing = beginner. See src/data/level.ts. */

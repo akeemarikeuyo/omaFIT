@@ -10,7 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchScreen } from './src/components/LaunchScreen';
 import { RootStackParamList, TabParamList } from './src/navigation';
 import { offerRestAlertsOnce } from './src/session/restAlert';
-import { getSettings } from './src/storage/store';
+import { getLogs, getSettings, saveSettings } from './src/storage/store';
 import CoachScreen from './src/screens/CoachScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
 import LogDetailScreen from './src/screens/LogDetailScreen';
@@ -19,6 +19,7 @@ import ProgressScreen from './src/screens/ProgressScreen';
 import ReviewScreen from './src/screens/ReviewScreen';
 import SessionScreen from './src/screens/SessionScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import SetupScreen from './src/screens/SetupScreen';
 import TodayScreen from './src/screens/TodayScreen';
 import WalkScreen from './src/screens/WalkScreen';
 import { colors } from './src/theme';
@@ -104,22 +105,35 @@ function Tabs() {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [showLaunch, setShowLaunch] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    // Warm up storage while the logo shows, then reveal the app
-    Promise.all([getSettings().catch(() => null), new Promise(r => setTimeout(r, MIN_LAUNCH_MS))]).then(() => {
-      if (alive) setReady(true);
+    // While the logo shows: decide whether this is a first run. People who already have logs skip setup.
+    const firstRun = (async () => {
+      const s = await getSettings();
+      if (s.onboarded) return false;
+      if ((await getLogs()).length) {
+        await saveSettings({ onboarded: true });
+        return false;
+      }
+      return true;
+    })().catch(() => false);
+    Promise.all([firstRun, new Promise(r => setTimeout(r, MIN_LAUNCH_MS))]).then(([first]) => {
+      if (!alive) return;
+      setNeedsSetup(first);
+      setReady(true);
     });
     return () => {
       alive = false;
     };
   }, []);
 
-  // Once the launch screen is gone, ask (only ever once) whether to turn on the rest-over alert
+  // Once the launch screen is gone, ask (only ever once) whether to turn on the rest-over alert.
+  // On a first run, setup asks at its end instead, so the two don't overlap.
   useEffect(() => {
-    if (!showLaunch) void offerRestAlertsOnce();
-  }, [showLaunch]);
+    if (!showLaunch && !needsSetup) void offerRestAlertsOnce();
+  }, [showLaunch, needsSetup]);
 
   const onLaunchLayout = useCallback(() => SplashScreen.hide(), []);
   const onLaunchHidden = useCallback(() => setShowLaunch(false), []);
@@ -128,20 +142,24 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer theme={theme}>
         <StatusBar style="light" />
-        <Stack.Navigator
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.card },
-            headerTintColor: colors.text,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
-          <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-          <Stack.Screen name="Session" component={SessionScreen} />
-          <Stack.Screen name="Exercise" component={ExerciseScreen} />
-          <Stack.Screen name="Walk" component={WalkScreen} options={{ title: 'Walk / run' }} />
-          <Stack.Screen name="LogDetail" component={LogDetailScreen} options={{ title: 'Logged' }} />
-          <Stack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'Build my plan' }} />
-        </Stack.Navigator>
+        {ready && (
+          <Stack.Navigator
+            initialRouteName={needsSetup ? 'Setup' : 'Tabs'}
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.card },
+              headerTintColor: colors.text,
+              contentStyle: { backgroundColor: colors.bg },
+            }}
+          >
+            <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+            <Stack.Screen name="Session" component={SessionScreen} />
+            <Stack.Screen name="Exercise" component={ExerciseScreen} />
+            <Stack.Screen name="Walk" component={WalkScreen} options={{ title: 'Walk / run' }} />
+            <Stack.Screen name="LogDetail" component={LogDetailScreen} options={{ title: 'Logged' }} />
+            <Stack.Screen name="PlanBuilder" component={PlanBuilderScreen} options={{ title: 'Build my plan' }} />
+            <Stack.Screen name="Setup" component={SetupScreen} options={{ headerShown: false }} />
+          </Stack.Navigator>
+        )}
       </NavigationContainer>
       {showLaunch && <LaunchScreen visible={!ready} onLayout={onLaunchLayout} onHidden={onLaunchHidden} />}
     </SafeAreaProvider>

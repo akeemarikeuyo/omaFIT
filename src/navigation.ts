@@ -7,6 +7,7 @@ export type RootStackParamList = {
   Exercise: { sessionId: SessionId; exerciseId: string };
   Walk: undefined;
   LogDetail: { logId: string };
+  Setup: undefined;
   PlanBuilder: undefined;
 };
 
