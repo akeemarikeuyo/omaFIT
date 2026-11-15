@@ -9,7 +9,7 @@ import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { LogoMark, TAGLINE, Wordmark } from '../components/Brand';
 import { Button, Segmented } from '../components/ui';
 import { DEFAULT_LEVEL, LEVELS, levelInfo, TrainingLevel } from '../data/level';
-import { BODYWEIGHT_ONLY, EQUIPMENT_OPTIONS, toggleEquipmentKey } from '../data/library';
+import { BODYWEIGHT, EQUIPMENT_OPTIONS, toggleEquipmentKey } from '../data/library';
 import { RootStackParamList } from '../navigation';
 import { offerRestAlertsOnce } from '../session/restAlert';
 import { saveSettings } from '../storage/store';
@@ -25,7 +25,7 @@ export default function SetupScreen({ navigation }: Props) {
   const [equipment, setEquipment] = useState<string[]>([]);
 
   const finish = async () => {
-    await saveSettings({ level, equipment: equipment.length ? equipment : [BODYWEIGHT_ONLY], onboarded: true });
+    await saveSettings({ level, equipment: equipment.length ? equipment : [BODYWEIGHT], onboarded: true });
     navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
     // Now that they're in, ask once about the rest-over alert
     void offerRestAlertsOnce();
@@ -79,7 +79,7 @@ export default function SetupScreen({ navigation }: Props) {
           <View style={{ gap: space.md }}>
             <Text style={ui.h1}>Your equipment</Text>
             <Text style={ui.muted}>
-              Your coach only picks exercises you can do with what you have. No equipment? Pick "Bodyweight only".
+              Your coach only picks exercises you can do with what you have. No gym equipment? Just pick Bodyweight.
             </Text>
             <View style={[ui.row, { flexWrap: 'wrap' }]}>
               {EQUIPMENT_OPTIONS.map(o => (
@@ -116,7 +116,7 @@ export default function SetupScreen({ navigation }: Props) {
             disabled={step === 2 && equipment.length === 0}
           />
           {step === 2 && equipment.length === 0 && (
-            <Text style={[ui.small, { textAlign: 'center' }]}>Pick at least one, or "Bodyweight only".</Text>
+            <Text style={[ui.small, { textAlign: 'center' }]}>Pick at least one (Bodyweight counts).</Text>
           )}
           {step === STEPS - 1 && <Button title="Skip for now" kind="secondary" onPress={finish} />}
           {step > 0 && <Button title="Back" kind="secondary" onPress={() => setStep(step - 1)} />}

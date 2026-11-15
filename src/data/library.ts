@@ -5,15 +5,16 @@ import type { Settings } from '../storage/store';
 import { DEFAULT_LEVEL, levelInfo, TrainingLevel } from './level';
 import type { SessionId } from './plan';
 
-/** No gym equipment at all: picking it clears the gym items (a skipping rope can stay). */
-export const BODYWEIGHT_ONLY = 'body only';
+/** Bodyweight, an equipment item like any other. Bodyweight exercises are always allowed; picked on its own it means
+ * the user has no gym equipment. */
+export const BODYWEIGHT = 'body only';
 /** Not a library equipment type: unlocks ROPE_EXERCISES as a warm-up or finisher on strength days. */
 export const SKIPPING_ROPE = 'jump rope';
 /** Library cardio exercises that need a rope. Allowed on strength days (warm-up/finisher) for any level. */
 const ROPE_EXERCISES = new Set(['Rope_Jumping']);
 
 export const EQUIPMENT_OPTIONS: { key: string; label: string }[] = [
-  { key: BODYWEIGHT_ONLY, label: 'Bodyweight only (no gym equipment)' },
+  { key: BODYWEIGHT, label: 'Bodyweight' },
   { key: SKIPPING_ROPE, label: 'Skipping rope' },
   { key: 'dumbbell', label: 'Dumbbells' },
   { key: 'barbell', label: 'Barbell' },
@@ -122,11 +123,9 @@ export function equipmentLabel(ex: DemoExercise, have: string[]): string {
 export const isLoaded = (ex: DemoExercise) =>
   ['dumbbell', 'barbell', 'kettlebells', 'e-z curl bar', 'cable', 'machine', 'medicine ball'].includes(ex.equipment);
 
-/** Picking equipment in Settings: "Bodyweight only" clears the gym items (keeps a rope); any gym item clears it. */
+/** Picking equipment: each item turns on and off on its own. */
 export function toggleEquipmentKey(current: string[], key: string): string[] {
-  if (current.includes(key)) return current.filter(k => k !== key);
-  if (key === BODYWEIGHT_ONLY) return [BODYWEIGHT_ONLY, ...current.filter(k => k === SKIPPING_ROPE)];
-  return [...current.filter(k => k !== BODYWEIGHT_ONLY || key === SKIPPING_ROPE), key];
+  return current.includes(key) ? current.filter(k => k !== key) : [...current, key];
 }
 
 /** Plan exercises (with a library demo) that the user's equipment can't do, e.g. barbell moves for bodyweight only. */

@@ -9,7 +9,7 @@ import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS, WEEKDAYS_LONG } from '../dat
 import { currentProvider } from '../api/ai';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
-import { BODYWEIGHT_ONLY, DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, SKIPPING_ROPE, toggleEquipmentKey, userEquipment } from '../data/library';
+import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, toggleEquipmentKey, userEquipment } from '../data/library';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
 
@@ -128,9 +128,9 @@ export default function SettingsScreen() {
   });
 
   const toggle = (key: SectionKey) => setOpen(cur => ({ ...cur, [key]: !cur[key] }));
-  const equipmentSummary = equipment.includes(BODYWEIGHT_ONLY)
-    ? `Bodyweight only${equipment.includes(SKIPPING_ROPE) ? ' + rope' : ''}`
-    : `${equipment.length} ${equipment.length === 1 ? 'item' : 'items'}`;
+  const equipmentSummary = equipment.length
+    ? `${equipment.length} ${equipment.length === 1 ? 'item' : 'items'}`
+    : 'Nothing picked';
   const profileSummary = profile.name.trim() || (Object.values(profile).some(v => v.trim()) ? 'Partly filled in' : 'Not filled in');
 
   return (
@@ -188,7 +188,7 @@ export default function SettingsScreen() {
           <View style={{ gap: space.sm }}>
             <Text style={ui.h3}>Your equipment</Text>
             <Text style={ui.small}>
-              The AI only picks exercises you can do with this. Pick "Bodyweight only" if you have no gym equipment.
+              The AI only picks exercises you can do with this. No gym equipment? Just pick Bodyweight.
               Bands can stand in for cables, and dumbbells for kettlebells.
             </Text>
             <View style={[ui.row, { flexWrap: 'wrap' }]}>
