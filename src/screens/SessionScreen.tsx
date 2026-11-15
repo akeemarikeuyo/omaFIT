@@ -1,10 +1,11 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, Text, TextInput, Vibration, View } from 'react-native';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { PainPicker } from '../components/PainPicker';
-import { Button, ScalePicker } from '../components/ui';
+import { Button, Pill, ScalePicker } from '../components/ui';
 import { cleanPains, lowerBackScore, maxPain, painsOf, redFlagsFor } from '../data/pain';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { Session } from '../data/plan';
@@ -74,6 +75,8 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [effort, setEffort] = useState(3);
   const [notes, setNotes] = useState('');
   const [restSeconds, setRestSeconds] = useState(60);
+  // Finished exercises the user opened again
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   // Rest is stored as the time it ends, so it stays right while the app is in the background
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -274,6 +277,16 @@ export default function SessionScreen({ route, navigation }: Props) {
     if (!wasDone && session) startRest(restSeconds);
   };
 
+  // The exercise the user is on: the first one with a set still to do
+  const currentId = exercises.find(ex => (sets[ex.id] ?? []).some(x => !x.done))?.id;
+  const toggleExpanded = (id: string) =>
+    setExpanded(cur => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const totalSets = Object.values(sets).reduce((n, a) => n + a.length, 0);
   const doneSets = Object.values(sets).reduce((n, a) => n + a.filter(s => s.done).length, 0);
 
@@ -327,17 +340,69 @@ export default function SessionScreen({ route, navigation }: Props) {
           </Text>
         )}
         <Text style={ui.muted}>{session.subtitle}</Text>
-        <Text style={ui.small}>
-          {doneSets}/{totalSets} sets done · {restSeconds} s rest
-          {sessionId !== 'posture' ? ' (change in Settings)' : ''}
-        </Text>
+        <View style={{ gap: 4 }}>
+          <View style={[ui.row, { justifyContent: 'space-between' }]}>
+            <Text style={ui.h3}>
+              {doneSets} of {totalSets} sets
+            </Text>
+            <Text style={ui.small}>
+              {restSeconds} s rest{sessionId !== 'posture' ? ' (change in Settings)' : ''}
+            </Text>
+          </View>
+          <View
+            style={{ height: 8, borderRadius: 4, backgroundColor: colors.cardAlt, overflow: 'hidden' }}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: totalSets, now: doneSets }}
+          >
+            <View
+              style={{ height: '100%', width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%`, backgroundColor: colors.good }}
+            />
+          </View>
+        </View>
 
-        {exercises.map((ex, idx) => (
-          <View key={ex.id} style={ui.card}>
-            <Pressable onPress={() => navigation.navigate('Exercise', { sessionId, exerciseId: ex.id })}>
-              <Text style={ui.h3}>
-                {idx + 1}. {ex.name} <Text style={{ color: colors.accent }}>▶ demo</Text>
-              </Text>
+        {exercises.map((ex, idx) => {
+          const exSets = sets[ex.id] ?? [];
+          const done = exSets.filter(s => s.done).length;
+          const complete = exSets.length > 0 && done === exSets.length;
+          const isCurrent = ex.id === currentId;
+          // Finished exercises fold away to keep the one you're on in view; tap to open them again
+          if (complete && !expanded.has(ex.id)) {
+            return (
+              <Pressable
+                key={ex.id}
+                onPress={() => toggleExpanded(ex.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${ex.name}, done. Tap to show sets.`}
+                style={[ui.card, ui.row, { justifyContent: 'space-between', paddingVertical: space.sm }]}
+              >
+                <View style={[ui.row, { flex: 1 }]}>
+                  <Ionicons name="checkmark-circle" size={22} color={colors.good} />
+                  <Text style={[ui.body, { flex: 1 }]} numberOfLines={1}>
+                    {ex.name}
+                  </Text>
+                </View>
+                <Text style={ui.small}>
+                  {done}/{exSets.length} sets
+                </Text>
+              </Pressable>
+            );
+          }
+          return (
+            <View key={ex.id} style={[ui.card, isCurrent && { borderColor: colors.accent, borderWidth: 2 }]}>
+              <View style={[ui.row, { justifyContent: 'space-between', alignItems: 'flex-start' }]}>
+                <Pressable onPress={() => navigation.navigate('Exercise', { sessionId, exerciseId: ex.id })} style={{ flex: 1 }}>
+                  <Text style={ui.h3}>
+                    {idx + 1}. {ex.name} <Text style={{ color: colors.accent }}>▶ demo</Text>
+                  </Text>
+                </Pressable>
+                {isCurrent ? (
+                  <Pill text="Now" color={colors.accent} />
+                ) : complete ? (
+                  <Pressable onPress={() => toggleExpanded(ex.id)} hitSlop={10} accessibilityRole="button">
+                    <Text style={ui.small}>Hide</Text>
+                  </Pressable>
+                ) : null}
+              </View>
               <Text style={ui.muted}>
                 {ex.sets} × {ex.reps}
                 {ex.perSide ? ' per side' : ''}
@@ -345,53 +410,55 @@ export default function SessionScreen({ route, navigation }: Props) {
               </Text>
               {!!ex.coachNote && <Text style={[ui.small, { color: colors.accent }]}>Coach: {ex.coachNote}</Text>}
               {!!lastText[ex.id] && <Text style={ui.small}>Last time: {lastText[ex.id]}</Text>}
-            </Pressable>
 
-            {(sets[ex.id] ?? []).map((s, i) => (
-              <View key={i} style={[ui.row, { marginTop: 2 }]}>
-                <Text style={[ui.small, { width: 40 }]}>Set {i + 1}</Text>
-                {ex.loaded && (
-                  <TextInput
-                    style={[ui.input, { flex: 1, paddingVertical: 6 }]}
-                    value={s.weight}
-                    onChangeText={v => update(ex.id, i, { weight: v.replace(',', '.') })}
-                    keyboardType="decimal-pad"
-                    placeholder="kg"
-                    placeholderTextColor={colors.muted}
-                  />
-                )}
-                {!isTimed(ex.reps) && (
-                  <TextInput
-                    style={[ui.input, { flex: 1, paddingVertical: 6 }]}
-                    value={s.reps}
-                    onChangeText={v => update(ex.id, i, { reps: v })}
-                    keyboardType="number-pad"
-                    placeholder="reps"
-                    placeholderTextColor={colors.muted}
-                  />
-                )}
-                {isTimed(ex.reps) && <Text style={[ui.muted, { flex: 1 }]}>{ex.reps}</Text>}
-                <Pressable
-                  onPress={() => toggleDone(ex.id, i)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: s.done }}
-                  style={{
-                    width: 40,
-                    height: 36,
-                    borderRadius: 10,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: s.done ? colors.good : colors.cardAlt,
-                    borderWidth: 1,
-                    borderColor: s.done ? colors.good : colors.border,
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>{s.done ? '✓' : ''}</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        ))}
+              {exSets.map((s, i) => (
+                <View key={i} style={[ui.row, { marginTop: 2 }]}>
+                  <Text style={[ui.small, { width: 40 }]}>Set {i + 1}</Text>
+                  {ex.loaded && (
+                    <TextInput
+                      style={[ui.input, { flex: 1, paddingVertical: 8 }]}
+                      value={s.weight}
+                      onChangeText={v => update(ex.id, i, { weight: v.replace(',', '.') })}
+                      keyboardType="decimal-pad"
+                      placeholder="kg"
+                      placeholderTextColor={colors.muted}
+                    />
+                  )}
+                  {!isTimed(ex.reps) && (
+                    <TextInput
+                      style={[ui.input, { flex: 1, paddingVertical: 8 }]}
+                      value={s.reps}
+                      onChangeText={v => update(ex.id, i, { reps: v })}
+                      keyboardType="number-pad"
+                      placeholder="reps"
+                      placeholderTextColor={colors.muted}
+                    />
+                  )}
+                  {isTimed(ex.reps) && <Text style={[ui.muted, { flex: 1 }]}>{ex.reps}</Text>}
+                  <Pressable
+                    onPress={() => toggleDone(ex.id, i)}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={`Set ${i + 1} done`}
+                    accessibilityState={{ checked: s.done }}
+                    hitSlop={6}
+                    style={{
+                      width: 52,
+                      height: 44,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: s.done ? colors.good : colors.cardAlt,
+                      borderWidth: 1,
+                      borderColor: s.done ? colors.good : colors.border,
+                    }}
+                  >
+                    <Ionicons name="checkmark" size={24} color={s.done ? '#fff' : colors.muted} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          );
+        })}
 
         <View style={[ui.card, { gap: space.lg }]}>
           <Text style={ui.h2}>Finish</Text>
