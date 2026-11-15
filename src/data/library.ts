@@ -128,11 +128,16 @@ export function toggleEquipmentKey(current: string[], key: string): string[] {
   return current.includes(key) ? current.filter(k => k !== key) : [...current, key];
 }
 
+const NO_EQUIPMENT = /^(none|bodyweight|body weight|doorway|wall|floor|mat|yoga mat)/i;
+
 /** Plan exercises (with a library demo) that the user's equipment can't do, e.g. barbell moves for bodyweight only. */
-export function planMisfits(exercises: { name: string; demoId?: string }[], have: string[]): string[] {
+export function planMisfits(exercises: { name: string; demoId?: string; equipment?: string }[], have: string[]): string[] {
   return exercises.flatMap(e => {
+    // Moves the plan does with no equipment (chin tucks, doorway stretches) fit everyone, whatever the demo photo shows
+    if (NO_EQUIPMENT.test(e.equipment ?? '')) return [];
     const ex = findDemo(e.demoId);
-    if (!ex) return [];
+    // "other" in the library is too vague to judge (wall, doorway, bench…): don't flag it
+    if (!ex || ex.equipment === 'other') return [];
     if (ROPE_EXERCISES.has(ex.id)) return have.includes(SKIPPING_ROPE) ? [] : [e.name];
     return equipmentFit(ex.equipment, have) ? [] : [e.name];
   });

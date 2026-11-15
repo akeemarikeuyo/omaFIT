@@ -28,7 +28,8 @@ export default function SetupScreen({ navigation }: Props) {
     await saveSettings({ level, equipment: equipment.length ? equipment : [BODYWEIGHT], onboarded: true });
     navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
     // Now that they're in, ask once about the rest-over alert
-    void offerRestAlertsOnce();
+    // Wait until the switch to Today has finished: a dialog opened mid-transition can be closed straight away
+    setTimeout(() => void offerRestAlertsOnce(), 900);
   };
 
   const next = () => (step < STEPS - 1 ? setStep(step + 1) : finish());
@@ -103,6 +104,9 @@ export default function SetupScreen({ navigation }: Props) {
             <Text style={ui.h1}>Your AI coach</Text>
             <Text style={ui.muted}>
               Optional. Workouts, logging and progress work without it. Add a key now or later in Settings.
+            </Text>
+            <Text onPress={finish} accessibilityRole="button" style={{ color: colors.accent, fontWeight: '700' }}>
+              Skip for now →
             </Text>
             <AISettings embedded />
           </View>
