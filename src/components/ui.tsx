@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { ActivityIndicator, Pressable, Text, View, ViewStyle } from 'react-native';
 import { colors, space, ui } from '../theme';
@@ -149,6 +150,41 @@ export function Segmented<K extends string | number>({
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** A card with a title that opens and closes. Shows a one-line summary while closed. */
+export function Section({
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  summary?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={ui.card}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${title}${summary && !open ? `, ${summary}` : ''}`}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}
+        hitSlop={8}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={ui.h2}>{title}</Text>
+          {!!summary && !open && <Text style={ui.small}>{summary}</Text>}
+        </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+      </Pressable>
+      {open && <View style={{ gap: space.md }}>{children}</View>}
     </View>
   );
 }

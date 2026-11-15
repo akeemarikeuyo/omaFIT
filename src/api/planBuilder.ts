@@ -22,6 +22,7 @@ import {
 } from '../storage/store';
 import { AIPart, askAI } from './ai';
 import { COACHING_RULES, contextBlock, librarySystemBlock } from './coach';
+import { levelOf } from '../data/level';
 import { findDemo } from './demos';
 
 export type PhotoView = 'front' | 'left side' | 'right side';
@@ -132,7 +133,9 @@ type SimItem = { id: string; demoId?: string; sets: number };
 /** Applies the app's safety checks. Anything that fails goes to `rejected` with the reason. */
 export async function validateProposal(raw: RawProposal) {
   const plan = await effectivePlan();
-  const have = userEquipment(await getSettings());
+  const settings = await getSettings();
+  const have = userEquipment(settings);
+  const level = levelOf(settings);
   const rejected: { what: string; why: string }[] = [];
 
   // A working copy of the plan, so each accepted change is checked against the ones before it
@@ -183,7 +186,7 @@ export async function validateProposal(raw: RawProposal) {
     const what = `Swap ${w.exercise_id} → ${lib?.name ?? w.library_id}`;
     if (!s) { rejected.push({ what, why: 'Not in your plan (or already removed).' }); continue; }
     if (!lib) { rejected.push({ what, why: 'Not in the exercise library.' }); continue; }
-    const why = rejectReason(lib, s, have);
+    const why = rejectReason(lib, s, have, level);
     if (why) { rejected.push({ what, why }); continue; }
     if (sim[s].some(e => e.demoId === lib.id)) { rejected.push({ what, why: 'Already in that session.' }); continue; }
     const item = sim[s].find(e => e.id === w.exercise_id)!;
@@ -203,7 +206,7 @@ export async function validateProposal(raw: RawProposal) {
     if (!isSession(a.session)) { rejected.push({ what, why: 'Unknown session.' }); continue; }
     const s = a.session;
     if (!lib) { rejected.push({ what, why: 'Not in the exercise library.' }); continue; }
-    const why = rejectReason(lib, s, have);
+    const why = rejectReason(lib, s, have, level);
     if (why) { rejected.push({ what, why }); continue; }
     if (!validSets(a.sets) || !clip(a.reps, 20)) { rejected.push({ what, why: 'Sets must be 1-5, with a rep target.' }); continue; }
     if (sim[s].some(e => e.demoId === lib.id)) { rejected.push({ what, why: 'Already in that session.' }); continue; }

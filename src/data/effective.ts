@@ -1,4 +1,4 @@
-import { AddedExercise, getAdditions, getOverrides, Overrides } from '../storage/store';
+import { AddedExercise, getAdditions, getOverrides, Overrides, ReviewChange } from '../storage/store';
 import { demoForAddedId } from './library';
 import { Exercise, Session, SessionId, SESSIONS } from './plan';
 
@@ -103,4 +103,15 @@ export async function planAsText(): Promise<string> {
       return `${SESSIONS[id].title} (${id}):\n${lines.join('\n')}`;
     })
     .join('\n\n');
+}
+
+/** A plan change in words, e.g. "swap to Band Pull Apart · 3 sets". Used by the weekly review and coach chat. */
+export function describeChange(c: ReviewChange): string {
+  const parts: string[] = [];
+  if (c.change.swapTo) parts.push(`swap to ${c.change.swapTo.name}`);
+  if (c.change.sets != null) parts.push(`${c.change.sets} sets`);
+  if (c.change.reps) parts.push(`${c.change.reps} reps`);
+  if (c.change.targetWeightKg != null) parts.push(`${c.change.targetWeightKg} kg`);
+  if (c.change.note) parts.push(`note: "${c.change.note}"`);
+  return parts.join(' · ') || 'no change';
 }

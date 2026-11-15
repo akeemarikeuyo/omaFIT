@@ -1,11 +1,13 @@
 import { effectivePlan, exerciseLabel, planAsText } from '../data/effective';
-import { candidates, EQUIPMENT_OPTIONS, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
+import { BODYWEIGHT, candidates, EQUIPMENT_OPTIONS, SKIPPING_ROPE, equipmentLabel, isLoaded, libraryAsText, rejectReason, userEquipment } from '../data/library';
+import { levelInfo, levelOf } from '../data/level';
 import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
 import { reviewStatus } from '../data/reviewSchedule';
 import { SessionId } from '../data/plan';
 import {
   AnyLog,
   ChatMessage,
+  ChatProposal,
   ExerciseOverride,
   getLogs,
   getPostureAssessment,
@@ -34,8 +36,16 @@ const SCHEDULE =
 function equipmentText(s: Settings): string {
   const notes = s.equipmentNotes?.trim() ? ` Notes from the user: ${s.equipmentNotes.trim()}.` : '';
   if (!s.equipment) return `Equipment ONLY (default home kit): ${DEFAULT_KIT}${notes}`;
-  const labels = EQUIPMENT_OPTIONS.filter(o => s.equipment!.includes(o.key)).map(o => o.label.toLowerCase());
-  return `Equipment ONLY: bodyweight${labels.length ? `, ${labels.join(', ')}` : ''}.${notes} Nothing else.`;
+  const have = s.equipment;
+  const labels = EQUIPMENT_OPTIONS.filter(o => have.includes(o.key) && o.key !== BODYWEIGHT && o.key !== SKIPPING_ROPE).map(o =>
+    o.label.toLowerCase(),
+  );
+  // Bodyweight exercises are always possible; with no other items the user has no gym equipment
+  const base = labels.length ? `bodyweight, ${labels.join(', ')}` : 'bodyweight only (no gym equipment)';
+  const rope = have.includes(SKIPPING_ROPE)
+    ? ' Also a skipping rope: Rope_Jumping may be added on strength days as a short warm-up or finisher (e.g. 3 rounds of 30-60 s), never as a main exercise.'
+    : '';
+  return `Equipment ONLY: ${base}.${rope}${notes} Nothing else.`;
 }
 
 /** Built from the profile the user fills in under Settings; nothing personal lives in the code. */
@@ -51,6 +61,7 @@ function athleteProfile(s: Settings): string {
     p.postureNotes?.trim() ? `Posture notes (self-reported): ${p.postureNotes.trim()}` : null,
     p.healthNotes?.trim() ? `Health / back notes (self-reported): ${p.healthNotes.trim()}` : null,
     s.bodyweightKg ? `Bodyweight: ${s.bodyweightKg} kg.` : null,
+    `Training level (set by the user): ${levelInfo(levelOf(s)).aiGuide} Fit sets, reps, session length and progression to this level.`,
     equipmentText(s),
     SCHEDULE,
   ]
@@ -64,7 +75,7 @@ Coaching rules you must follow:
 - Load increases at most about 5-10% (or the smallest plate step, typically 1-2.5 kg per dumbbell) per week.
 - Keep upper-body pulling volume at least 2x pushing volume.
 - No barbell back squats or heavy barbell deadlifts. Prefer goblet squats, split squats, dumbbell RDLs, hip thrusts.
-- Pain is logged per area on strength days and walks/runs ("pain: none" means no pain or discomfort). The posture routine doesn't ask, so it has no pain field: that means not asked, not pain-free. Pain after walks or runs (often knees, ankles, feet, hips or lower back) counts too: ease the walk/run progression (shorter, flatter, more walking intervals) as well as the strength exercises that load that area. If pain in any area was >= 5/10 or rising: reduce load or volume on the exercises that load that area, or swap them for gentler ones. Never add load to exercises that load a painful area. What loads each area: ${PAIN_LOADS_FOR_AI}.
+- Pain is logged per area after the posture routine, strength days and walks/runs ("pain: none" means no pain or discomfort). A log with no pain field wasn't asked (a few older logs): that means not asked, not pain-free. Pain after walks or runs (often knees, ankles, feet, hips or lower back) counts too: ease the walk/run progression (shorter, flatter, more walking intervals) as well as the strength exercises that load that area. If pain in any area was >= 5/10 or rising: reduce load or volume on the exercises that load that area, or swap them for gentler ones. Never add load to exercises that load a painful area. What loads each area: ${PAIN_LOADS_FOR_AI}.
 - If lower back pain was >= 5/10 or rising: reduce load or volume on hinges, squats and the ab wheel, or swap the ab wheel for dead bugs/planks. Keep the gentle posture routine.
 - Only use the equipment listed. Never invent data the logs do not contain; if there is too little data, say so and change little or nothing.
 - New or swapped exercises must come from the exercise library list, by its exact id. Never invent exercises.
@@ -79,7 +90,7 @@ Coaching rules you must follow:
  * It only changes when the equipment changes, so repeat requests can be served from the provider's prompt cache.
  */
 export function librarySystemBlock(s: Settings) {
-  const { posture, strength } = candidates(userEquipment(s));
+  const { posture, strength } = candidates(userEquipment(s), levelOf(s));
   return {
     text:
       'EXERCISE LIBRARY. You may only add or swap in exercises from these lists, using the exact id (first column). ' +
@@ -150,6 +161,29 @@ export interface ReviewResult {
   rejected: { exerciseId: string; why: string }[];
 }
 
+/** One plan change, as the weekly review and the coach chat both propose it. Checked by validateChanges. */
+const CHANGE_ITEM = {
+  type: 'object',
+  properties: {
+    exercise_id: { type: 'string', description: 'An id from the plan, in brackets.' },
+    sets: { type: 'integer', minimum: 1, maximum: 5 },
+    reps: { type: 'string', description: 'e.g. "10", "8-12", "30 s"' },
+    target_weight_kg: { type: 'number', description: 'Per dumbbell, or total barbell weight.' },
+    swap_to: {
+      type: 'object',
+      description: 'Replace the exercise with one from the exercise library.',
+      properties: {
+        library_id: { type: 'string', description: 'Exact id from the exercise library list.' },
+        cues: { type: 'array', items: { type: 'string' }, description: '2-3 short form cues.' },
+      },
+      required: ['library_id', 'cues'],
+    },
+    note: { type: 'string', description: 'One short cue shown on the exercise.' },
+    reason: { type: 'string', description: 'Why, citing the logged numbers or what the user said.' },
+  },
+  required: ['exercise_id', 'reason'],
+};
+
 const REVIEW_TOOL = {
   name: 'submit_weekly_review',
   description: 'Submit the weekly review and any plan changes for the next week.',
@@ -164,27 +198,7 @@ const REVIEW_TOOL = {
       changes: {
         type: 'array',
         description: 'At most 4 changes. Empty if nothing should change.',
-        items: {
-          type: 'object',
-          properties: {
-            exercise_id: { type: 'string', description: 'An id from the plan, in brackets.' },
-            sets: { type: 'integer', minimum: 1, maximum: 5 },
-            reps: { type: 'string', description: 'e.g. "10", "8-12", "30 s"' },
-            target_weight_kg: { type: 'number', description: 'Per dumbbell, or total barbell weight.' },
-            swap_to: {
-              type: 'object',
-              description: 'Replace the exercise with one from the exercise library.',
-              properties: {
-                library_id: { type: 'string', description: 'Exact id from the exercise library list.' },
-                cues: { type: 'array', items: { type: 'string' }, description: '2-3 short form cues.' },
-              },
-              required: ['library_id', 'cues'],
-            },
-            note: { type: 'string', description: 'One short cue shown on the exercise.' },
-            reason: { type: 'string', description: 'Why, citing the logged numbers.' },
-          },
-          required: ['exercise_id', 'reason'],
-        },
+        items: CHANGE_ITEM,
       },
     },
     required: ['summary', 'changes'],
@@ -214,6 +228,7 @@ function heaviestRecent(logs: AnyLog[], exerciseId: string): number | null {
 
 /** App-side safety checks on the AI's suggestions, so a bad suggestion can't slip through. */
 async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
+  const level = levelOf(await getSettings());
   const plan = await effectivePlan();
   const sessionOf = new Map<string, SessionId>();
   for (const [sid, exs] of Object.entries(plan)) for (const e of exs) sessionOf.set(e.id, sid as SessionId);
@@ -252,7 +267,7 @@ async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
     const change: ExerciseOverride = {};
     if (c.swap_to) {
       const lib = findDemo(c.swap_to.library_id);
-      const why = lib ? rejectReason(lib, session, have) : 'Not in the exercise library.';
+      const why = lib ? rejectReason(lib, session, have, level) : 'Not in the exercise library.';
       if (!lib || why) {
         rejected.push({ exerciseId: c.exercise_id, why: `Swap blocked: ${why}` });
         continue;
@@ -308,21 +323,74 @@ export async function runWeeklyReview(): Promise<ReviewResult> {
 
 // ---------- coach chat ----------
 
-export async function askCoach(history: ChatMessage[]): Promise<string> {
-  const name = (await getSettings()).profile?.name?.trim();
-  const { text } = await askAI({
+const CHAT_TOOL = {
+  name: 'reply_to_user',
+  description: 'Reply to the user in the chat, optionally with plan changes for them to approve with the Apply button.',
+  schema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: 'Your chat reply: short, plain, practical.' },
+      changes: {
+        type: 'array',
+        description:
+          'Plan changes for the user to approve. ONLY when they have agreed to, or clearly asked for, a specific change. At most 3. Otherwise empty.',
+        items: CHANGE_ITEM,
+      },
+    },
+    required: ['message', 'changes'],
+  },
+};
+
+const CHAT_CHANGES_RULES = `
+Changing the plan from chat:
+- You can change the user's plan, but only through the "changes" field of reply_to_user. The app checks each change and shows the user an Apply button; nothing changes until they tap it.
+- When they want to replace or adjust an exercise, first suggest 1-3 options from the exercise library (by name) with a one-line reason each, and ask which they prefer. Leave "changes" empty while they are still deciding.
+- Once they pick one or clearly agree, put exactly that change in "changes" (exercise_id = the plan id in brackets, swap_to.library_id = the exact library id) and ask them to tap Apply to confirm.
+- Never say a change has been applied. Later messages tell you whether they applied or declined it.
+`.trim();
+
+/** What a coach chat reply carries: the message, and any plan changes the app checked for the user to approve. */
+export interface CoachReply {
+  text: string;
+  proposal?: ChatProposal;
+}
+
+/** A proposal's outcome, so the coach knows what happened to what it suggested. */
+function proposalNote(p: ChatProposal): string {
+  const what = p.changes.map(c => `[${c.exerciseId}] ${c.change.swapTo ? `swap to ${c.change.swapTo.name}` : 'adjust'}`).join('; ');
+  const status =
+    p.status === 'applied' ? 'the user tapped Apply, so it is now in their plan' : p.status === 'dismissed' ? 'the user declined it' : 'waiting for the user';
+  const blocked = p.rejected.length ? ` Blocked by the app: ${p.rejected.map(r => `[${r.exerciseId}] ${r.why}`).join('; ')}.` : '';
+  return `\n\n(App note: proposed ${what || 'no valid change'}; ${status}.${blocked})`;
+}
+
+export async function askCoach(history: ChatMessage[]): Promise<CoachReply> {
+  const settings = await getSettings();
+  const name = settings.profile?.name?.trim();
+  const { text, toolInput } = await askAI({
     maxTokens: 8000,
     effort: 'low',
     system: [
       {
         text:
           `You are ${name ? `${name}'s` : 'the user’s'} posture and home workout coach in the omaFIT app, chatting on their phone. ` +
-          `They spend long hours sitting.\n\n${COACHING_RULES}\n\n` +
+          `They spend long hours sitting.\n\n${COACHING_RULES}\n\n${CHAT_CHANGES_RULES}\n\n` +
+          'Answer by calling reply_to_user once.\n\n' +
           `Context:\n${await contextBlock(14)}`,
       },
+      librarySystemBlock(settings),
     ],
-    messages: history.slice(-20).map(m => ({ role: m.role, content: m.content })),
+    tool: CHAT_TOOL,
+    toolOptional: true,
+    messages: history.slice(-20).map(m => ({ role: m.role, content: m.content + (m.proposal ? proposalNote(m.proposal) : '') })),
   });
-  if (!text) throw new AIError('Empty reply from your AI coach. Try again.');
-  return text;
+
+  // Output from any provider is untrusted: type-checked, clipped and validated like the weekly review
+  const input = (toolInput ?? {}) as { message?: unknown; changes?: unknown };
+  const message = (typeof input.message === 'string' ? input.message : text).trim().slice(0, 4000);
+  if (!message) throw new AIError('Empty reply from your AI coach. Try again.');
+  const raw = Array.isArray(input.changes) ? (input.changes.slice(0, 3) as RawChange[]) : [];
+  if (!raw.length) return { text: message };
+  const { changes, rejected } = await validateChanges(raw, await getLogs());
+  return { text: message, proposal: { changes, rejected, status: 'pending' } };
 }

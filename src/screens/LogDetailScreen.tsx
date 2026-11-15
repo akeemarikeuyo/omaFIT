@@ -13,7 +13,7 @@ import { colors, space, ui } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'LogDetail'>;
 
 const EFFORT = ['', 'very easy', 'easy', 'moderate', 'hard', 'nothing left'];
-const CARDIO = { walk: 'Walk', 'run-walk': 'Run-walk', run: 'Run' } as const;
+const CARDIO = { walk: 'Walk', 'run-walk': 'Run-walk', run: 'Run', skipping: 'Skipping' } as const;
 
 const setText = (s: SetLog) =>
   [s.weightKg != null ? `${s.weightKg} kg` : null, s.reps != null ? `${s.reps}` : null].filter(Boolean).join(' × ') || '✓';
@@ -73,7 +73,7 @@ export default function LogDetailScreen({ route, navigation }: Props) {
           </>
         )}
         {isUnfinished(log) && <Text style={[ui.small, { color: colors.warn }]}>Not finished.</Text>}
-        <Text style={ui.small}>Logged entries can't be edited. Long-press one in Recent on Today to delete it.</Text>
+        <Text style={ui.small}>Logged entries can't be edited. To delete one, long-press it in History on the Progress tab.</Text>
       </View>
 
       {log.kind === 'session' &&

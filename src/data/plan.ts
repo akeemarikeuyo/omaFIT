@@ -225,7 +225,7 @@ export function walkForWeek(programWeek: number) {
   return WALK_PLAN[4];
 }
 
-export type CardioType = 'walk' | 'run-walk' | 'run';
+export type CardioType = 'walk' | 'run-walk' | 'run' | 'skipping';
 
 export interface WalkToday {
   title: string;

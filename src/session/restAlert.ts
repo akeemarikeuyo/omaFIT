@@ -48,17 +48,18 @@ function setUpOnce() {
 }
 
 /** Explains why before the phone's own permission prompt. Resolves true if the user wants to continue. */
+/** 'yes' / 'no' when the user taps a button; 'closed' if the dialog went away without an answer (ask again later). */
 const explain = () =>
-  new Promise<boolean>(resolve =>
+  new Promise<'yes' | 'no' | 'closed'>(resolve =>
     Alert.alert(
       'Turn on notifications?',
       'omaFIT uses them for one thing: a sound when your rest between sets is over, even if you switch to another ' +
         'app. Nothing else, and nothing is sent anywhere. You can change this later in your phone settings.',
       [
-        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Turn on', onPress: () => resolve(true) },
+        { text: 'Not now', style: 'cancel', onPress: () => resolve('no') },
+        { text: 'Turn on', onPress: () => resolve('yes') },
       ],
-      { cancelable: true, onDismiss: () => resolve(false) },
+      { cancelable: true, onDismiss: () => resolve('closed') },
     ),
   );
 
@@ -71,8 +72,14 @@ export async function offerRestAlertsOnce() {
     if ((await getSettings()).notificationsAsked) return;
     await setUpOnce();
     const current = await getPermissionsAsync();
-    if (!current.granted && current.status === 'undetermined' && current.canAskAgain && (await explain())) {
-      await requestPermissionsAsync();
+    // Android 13+ reports a never-asked notification permission as "denied" with canAskAgain, not "undetermined",
+    // so ask whenever it isn't granted and the system still lets us ask
+    if (!current.granted && current.canAskAgain) {
+      const answer = await explain();
+      // Only a real answer counts: if the dialog was closed some other way, ask again next launch
+      if (answer === 'closed') return;
+      // Alerts and sound only: omaFIT never sets an app-icon badge (iOS would otherwise ask for that too)
+      if (answer === 'yes') await requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: false } });
     }
     await saveSettings({ notificationsAsked: true });
   } catch (e) {

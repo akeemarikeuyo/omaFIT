@@ -4,8 +4,9 @@ import { Alert, ScrollView, ScrollViewInstance, Text, TextInput, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { askCoach } from '../api/coach';
 import { KeyboardAvoider } from '../components/KeyboardAware';
-import { Button } from '../components/ui';
-import { ChatMessage, clearChat, getChat, saveChat } from '../storage/store';
+import { Button, Pill } from '../components/ui';
+import { describeChange, exerciseLabel } from '../data/effective';
+import { ChatMessage, ChatProposal, clearChat, getChat, mergeOverrides, Overrides, saveChat } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 const STARTERS = [
@@ -31,7 +32,7 @@ export default function CoachScreen() {
     setSending(true);
     try {
       const reply = await askCoach(next);
-      const withReply: ChatMessage[] = [...next, { role: 'assistant', content: reply }];
+      const withReply: ChatMessage[] = [...next, { role: 'assistant', content: reply.text, proposal: reply.proposal }];
       setMessages(withReply);
       await saveChat(withReply);
     } catch (e) {
@@ -41,6 +42,22 @@ export default function CoachScreen() {
     } finally {
       setSending(false);
     }
+  };
+
+  /** Apply or decline a change the coach suggested. Only an Apply tap changes the plan. */
+  const decide = async (index: number, apply: boolean) => {
+    const m = messages[index];
+    if (!m.proposal || m.proposal.status !== 'pending') return;
+    if (apply) {
+      const patch: Overrides = {};
+      for (const c of m.proposal.changes) patch[c.exerciseId] = c.change;
+      await mergeOverrides(patch);
+    }
+    const updated = messages.map((x, i) =>
+      i === index && x.proposal ? { ...x, proposal: { ...x.proposal, status: apply ? ('applied' as const) : ('dismissed' as const) } } : x,
+    );
+    setMessages(updated);
+    await saveChat(updated);
   };
 
   const clear = () =>
@@ -65,7 +82,8 @@ export default function CoachScreen() {
             <View style={{ gap: space.sm }}>
               <Text style={ui.muted}>
                 Ask about your plan, a sore back day or an exercise. The coach sees your plan and last 2 weeks of
-                logs. It can't see your form, so use the demos for that.
+                logs, and can suggest changes, like swapping an exercise: nothing changes until you tap Apply. It
+                can't see your form, so use the demos for that.
               </Text>
               {STARTERS.map(s => (
                 <Button key={s} title={s} kind="secondary" onPress={() => send(s)} />
@@ -84,6 +102,7 @@ export default function CoachScreen() {
               }}
             >
               <Text style={[ui.body, m.role === 'user' && { color: colors.accentText }]}>{m.content}</Text>
+              {m.proposal && <ProposalCard proposal={m.proposal} onDecide={apply => decide(i, apply)} />}
             </View>
           ))}
           {sending && <Text style={ui.muted}>Coach is typing…</Text>}
@@ -101,5 +120,34 @@ export default function CoachScreen() {
         </View>
       </KeyboardAvoider>
     </SafeAreaView>
+  );
+}
+
+/** A plan change the coach suggested, already safety-checked by the app. */
+function ProposalCard({ proposal, onDecide }: { proposal: ChatProposal; onDecide: (apply: boolean) => void }) {
+  const { changes, rejected, status } = proposal;
+  return (
+    <View style={{ marginTop: space.sm, gap: space.sm, borderTopWidth: 1, borderColor: colors.border, paddingTop: space.sm }}>
+      {changes.map((c, i) => (
+        <View key={i} style={{ gap: 2 }}>
+          <Text style={ui.h3}>{exerciseLabel(c.exerciseId)}</Text>
+          <Text style={[ui.body, { color: colors.accent }]}>{describeChange(c)}</Text>
+          {!!c.reason && <Text style={ui.small}>{c.reason}</Text>}
+        </View>
+      ))}
+      {rejected.map((r, i) => (
+        <Text key={i} style={[ui.small, { color: colors.warn }]}>
+          Blocked by the app's safety checks: {exerciseLabel(r.exerciseId)}. {r.why}
+        </Text>
+      ))}
+      {changes.length > 0 && status === 'pending' && (
+        <View style={ui.row}>
+          <Button title="Apply" onPress={() => onDecide(true)} style={{ flex: 1 }} />
+          <Button title="No thanks" kind="secondary" onPress={() => onDecide(false)} style={{ flex: 1 }} />
+        </View>
+      )}
+      {status === 'applied' && <Pill text="Applied to your plan" color={colors.good} />}
+      {status === 'dismissed' && changes.length > 0 && <Pill text="Not applied" color={colors.cardAlt} />}
+    </View>
   );
 }

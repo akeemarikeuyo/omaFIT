@@ -1,18 +1,20 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
+import { LogRow } from '../components/LogRow';
 import { Button, Pill } from '../components/ui';
+import { effectivePlan } from '../data/effective';
+import { planMisfits } from '../data/library';
 import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
 import {
   AnyLog,
-  deleteLog,
   getLogs,
   getSettings,
   isPainRated,
@@ -33,12 +35,19 @@ export default function TodayScreen() {
   const [logs, setLogs] = useState<AnyLog[]>([]);
   const [open, setOpen] = useState<WorkoutLog | null>(null);
 
+  const [misfits, setMisfits] = useState<string[]>([]);
+
   const load = useCallback(async () => {
     const s = await getSettings();
     setWeek(programWeek(s.startDate));
     setNext(await nextStrengthSession());
     setLogs(await getLogs());
     setOpen(await unfinishedToday());
+    // Only once the user has picked their own equipment: the default plan fits the default kit
+    if (s.equipment) {
+      const plan = await effectivePlan();
+      setMisfits(planMisfits([...plan.posture, ...plan.A, ...plan.B], s.equipment));
+    } else setMisfits([]);
   }, []);
 
   useFocusEffect(
@@ -76,12 +85,6 @@ export default function TodayScreen() {
   const painHigh = highPains.length > 0;
 
   const start = (id: SessionId) => nav.navigate('Session', { sessionId: id });
-
-  const confirmDelete = (l: AnyLog) =>
-    Alert.alert('Delete this entry?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteLog(l.id); load(); } },
-    ]);
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
@@ -133,6 +136,17 @@ export default function TodayScreen() {
           <Text style={ui.muted}>{encouragement(stats)}</Text>
           <Text style={{ color: colors.accent, fontWeight: '700' }}>See progress →</Text>
         </Pressable>
+
+        {misfits.length > 0 && (
+          <Pressable onPress={() => nav.navigate('PlanBuilder')} style={[ui.card, { borderColor: colors.warn }]}>
+            <Text style={[ui.h3, { color: colors.warn }]}>Your plan needs equipment you don't have</Text>
+            <Text style={ui.muted}>
+              {misfits.length === 1 ? '1 exercise' : `${misfits.length} exercises`} (e.g. {misfits[0]}) can't be done with
+              your equipment. Build my plan swaps them for ones you can do.
+            </Text>
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>Build my plan →</Text>
+          </Pressable>
+        )}
 
         {painHigh && (
           <View style={[ui.card, { borderColor: colors.warn }]}>
@@ -212,23 +226,17 @@ export default function TodayScreen() {
           </View>
         </View>
 
-        <Text style={[ui.h2, { marginTop: space.md }]}>Recent</Text>
+        <View style={[ui.row, { justifyContent: 'space-between', marginTop: space.md }]}>
+          <Text style={ui.h2}>Recent</Text>
+          {logs.length > 3 && (
+            <Text onPress={() => nav.navigate('Tabs', { screen: 'Progress' })} style={{ color: colors.accent, fontWeight: '700' }}>
+              See all →
+            </Text>
+          )}
+        </View>
         {logs.length === 0 && <Text style={ui.muted}>Nothing logged yet.</Text>}
-        {logs.slice(0, 15).map(l => (
-          <Pressable
-            key={l.id}
-            onPress={() => view(l)}
-            onLongPress={() => confirmDelete(l)}
-            style={[ui.card, ui.row, { justifyContent: 'space-between' }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={ui.body}>
-                {l.kind === 'cardio' ? `${l.type} · ${l.minutes} min` : SESSIONS[l.session].title}
-              </Text>
-              <Text style={ui.small}>{new Date(l.date).toDateString()} · tap to view, long-press to delete</Text>
-            </View>
-            {isUnfinished(l) && <Text style={{ color: colors.muted, fontWeight: '700' }}>unfinished</Text>}
-          </Pressable>
+        {logs.slice(0, 3).map(l => (
+          <LogRow key={l.id} log={l} onDeleted={load} />
         ))}
       </KeyboardAwareScrollView>
     </SafeAreaView>

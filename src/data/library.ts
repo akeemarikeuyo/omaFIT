@@ -2,9 +2,20 @@
 // bundled free-exercise-db index (so every pick has a demo), and only ones that pass these checks.
 import { ALL, DemoExercise, findDemo } from '../api/demos';
 import type { Settings } from '../storage/store';
+import { DEFAULT_LEVEL, levelInfo, TrainingLevel } from './level';
 import type { SessionId } from './plan';
 
+/** Bodyweight, an equipment item like any other. Bodyweight exercises are always allowed; picked on its own it means
+ * the user has no gym equipment. */
+export const BODYWEIGHT = 'body only';
+/** Not a library equipment type: unlocks ROPE_EXERCISES as a warm-up or finisher on strength days. */
+export const SKIPPING_ROPE = 'jump rope';
+/** Library cardio exercises that need a rope. Allowed on strength days (warm-up/finisher) for any level. */
+const ROPE_EXERCISES = new Set(['Rope_Jumping']);
+
 export const EQUIPMENT_OPTIONS: { key: string; label: string }[] = [
+  { key: BODYWEIGHT, label: 'Bodyweight' },
+  { key: SKIPPING_ROPE, label: 'Skipping rope' },
   { key: 'dumbbell', label: 'Dumbbells' },
   { key: 'barbell', label: 'Barbell' },
   { key: 'kettlebells', label: 'Kettlebells' },
@@ -42,9 +53,16 @@ const POSTURE_EQUIPMENT = ['body only', 'bands', 'foam roll', 'exercise ball'];
 const BANNED_BARBELL = /squat|deadlift|good ?morning|clean|snatch|jerk|rack pull/i;
 
 /** Why an exercise can't go into this session, or null if it can. */
-export function rejectReason(ex: DemoExercise, session: SessionId, have: string[]): string | null {
+export function rejectReason(ex: DemoExercise, session: SessionId, have: string[], level: TrainingLevel = DEFAULT_LEVEL): string | null {
+  if (ROPE_EXERCISES.has(ex.id)) {
+    if (!have.includes(SKIPPING_ROPE)) return "Needs a skipping rope, which isn't in your equipment.";
+    if (session === 'posture') return 'Skipping is for strength days (as a warm-up or finisher), not the posture routine.';
+    return null;
+  }
   if (!equipmentFit(ex.equipment, have)) return `Needs ${ex.equipment}, which isn't in your equipment.`;
   if (ex.level === 'expert') return 'Expert-level exercise.';
+  const lvl = levelInfo(level);
+  if (!lvl.libraryLevels.includes(ex.level)) return `${ex.level[0].toUpperCase()}${ex.level.slice(1)}-level exercise; your level is ${lvl.label}.`;
   if (ex.equipment === 'barbell' && BANNED_BARBELL.test(ex.name)) return 'Heavy barbell squats and deadlifts are not used in omaFIT.';
   if (session === 'posture') {
     if (!POSTURE_CATEGORIES.includes(ex.category)) return 'Not a posture or mobility exercise.';
@@ -57,10 +75,10 @@ export function rejectReason(ex: DemoExercise, session: SessionId, have: string[
 }
 
 /** Library exercises the AI may choose from, for the given equipment. */
-export function candidates(have: string[]): { posture: DemoExercise[]; strength: DemoExercise[] } {
+export function candidates(have: string[], level: TrainingLevel = DEFAULT_LEVEL): { posture: DemoExercise[]; strength: DemoExercise[] } {
   return {
-    posture: ALL.filter(e => !rejectReason(e, 'posture', have)),
-    strength: ALL.filter(e => !rejectReason(e, 'A', have)),
+    posture: ALL.filter(e => !rejectReason(e, 'posture', have, level)),
+    strength: ALL.filter(e => !rejectReason(e, 'A', have, level)),
   };
 }
 
@@ -104,3 +122,23 @@ export function equipmentLabel(ex: DemoExercise, have: string[]): string {
 /** Whether to log a weight for this exercise. */
 export const isLoaded = (ex: DemoExercise) =>
   ['dumbbell', 'barbell', 'kettlebells', 'e-z curl bar', 'cable', 'machine', 'medicine ball'].includes(ex.equipment);
+
+/** Picking equipment: each item turns on and off on its own. */
+export function toggleEquipmentKey(current: string[], key: string): string[] {
+  return current.includes(key) ? current.filter(k => k !== key) : [...current, key];
+}
+
+const NO_EQUIPMENT = /^(none|bodyweight|body weight|doorway|wall|floor|mat|yoga mat)/i;
+
+/** Plan exercises (with a library demo) that the user's equipment can't do, e.g. barbell moves for bodyweight only. */
+export function planMisfits(exercises: { name: string; demoId?: string; equipment?: string }[], have: string[]): string[] {
+  return exercises.flatMap(e => {
+    // Moves the plan does with no equipment (chin tucks, doorway stretches) fit everyone, whatever the demo photo shows
+    if (NO_EQUIPMENT.test(e.equipment ?? '')) return [];
+    const ex = findDemo(e.demoId);
+    // "other" in the library is too vague to judge (wall, doorway, bench…): don't flag it
+    if (!ex || ex.equipment === 'other') return [];
+    if (ROPE_EXERCISES.has(ex.id)) return have.includes(SKIPPING_ROPE) ? [] : [e.name];
+    return equipmentFit(ex.equipment, have) ? [] : [e.name];
+  });
+}
