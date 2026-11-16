@@ -7,6 +7,7 @@ import { Button, Section, Segmented } from '../components/ui';
 import { DEFAULT_LEVEL, LEVELS, levelInfo, levelOf, TrainingLevel } from '../data/level';
 import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS, WEEKDAYS_LONG } from '../data/reviewSchedule';
 import { currentProvider } from '../api/ai';
+import { fixRestAlerts, RestAlertStatus, restAlertStatus } from '../session/restAlert';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
 import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, toggleEquipmentKey, userEquipment } from '../data/library';
@@ -40,6 +41,7 @@ export default function SettingsScreen() {
   // Which sections are open. All start closed so the page fits on one screen.
   const [open, setOpen] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [providerLabel, setProviderLabel] = useState('');
+  const [alertStatus, setAlertStatus] = useState<RestAlertStatus>('onTime');
 
   const load = useCallback(async () => {
     const s = await getSettings();
@@ -48,6 +50,7 @@ export default function SettingsScreen() {
     setLevel(levelOf(s));
     setStartDate(s.startDate);
     setProviderLabel(currentProvider(s).label);
+    setAlertStatus(await restAlertStatus());
     setBodyweight(s.bodyweightKg ? String(s.bodyweightKg) : '');
     setEquipment(userEquipment(s));
     setEquipmentNotes(s.equipmentNotes ?? '');
@@ -219,6 +222,26 @@ export default function SettingsScreen() {
           open={!!open.training}
           onToggle={() => toggle('training')}
         >
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Rest alerts</Text>
+            <Text style={[ui.body, { color: alertStatus === 'onTime' ? colors.good : colors.warn }]}>
+              {alertStatus === 'onTime'
+                ? 'On: a sound when rest is over, on time.'
+                : alertStatus === 'late'
+                  ? 'On, but Android may deliver them late.'
+                  : 'Off: no sound when rest is over in another app.'}
+            </Text>
+            {alertStatus !== 'onTime' && (
+              <Button
+                title={alertStatus === 'late' ? 'Get them on time' : 'Turn on rest alerts'}
+                kind="secondary"
+                onPress={async () => {
+                  await fixRestAlerts();
+                  setAlertStatus(await restAlertStatus());
+                }}
+              />
+            )}
+          </View>
           <View style={{ gap: space.sm }}>
             <Text style={ui.h3}>Rest between sets</Text>
             <Text style={ui.small}>

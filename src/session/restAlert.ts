@@ -5,7 +5,9 @@ import {
   AndroidImportance,
   cancelScheduledNotificationAsync,
   dismissNotificationAsync,
+  getExactAlarmPermissionsAsync,
   getPermissionsAsync,
+  requestExactAlarmPermissionsAsync,
   requestPermissionsAsync,
   scheduleNotificationAsync,
   SchedulableTriggerInputTypes,
@@ -21,17 +23,22 @@ const CHANNEL_ID = 'rest-timer';
 const ALERT_ID = 'rest-over';
 
 let setUp: Promise<void> | null = null;
+let lastSoundAt = 0;
 
-/** Lets the alert play its sound (with a short banner) when omaFIT is open, and creates the Android channel. */
+/**
+ * While omaFIT is open the alert is just a sound (no banner: the rest bar is on screen). In another app or with the
+ * screen off, Android shows it as a notification with sound and vibration. Also creates the Android channel.
+ */
 function setUpOnce() {
   setUp ??= (async () => {
     setNotificationHandler({
-      handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldShowBanner: true,
-        shouldShowList: false,
-        shouldSetBadge: false,
-      }),
+      handleNotification: async () => {
+        // The in-app alert and Android's scheduled one can land together: play one sound, not two
+        const now = Date.now();
+        const play = now - lastSoundAt > 3000;
+        if (play) lastSoundAt = now;
+        return { shouldPlaySound: play, shouldShowBanner: false, shouldShowList: false, shouldSetBadge: false };
+      },
     });
     if (Platform.OS === 'android') {
       await setNotificationChannelAsync(CHANNEL_ID, {
@@ -47,7 +54,6 @@ function setUpOnce() {
   return setUp;
 }
 
-/** Explains why before the phone's own permission prompt. Resolves true if the user wants to continue. */
 /** 'yes' / 'no' when the user taps a button; 'closed' if the dialog went away without an answer (ask again later). */
 const explain = () =>
   new Promise<'yes' | 'no' | 'closed'>(resolve =>
@@ -69,8 +75,13 @@ const explain = () =>
  */
 export async function offerRestAlertsOnce() {
   try {
-    if ((await getSettings()).notificationsAsked) return;
+    const settings = await getSettings();
     await setUpOnce();
+    if (settings.notificationsAsked) {
+      // Already answered (e.g. before on-time alerts existed): offer the on-time setting once
+      if (!settings.onTimeAlertsAsked && (await getPermissionsAsync()).granted) await offerOnTimeAlerts();
+      return;
+    }
     const current = await getPermissionsAsync();
     // Android 13+ reports a never-asked notification permission as "denied" with canAskAgain, not "undetermined",
     // so ask whenever it isn't granted and the system still lets us ask
@@ -82,8 +93,78 @@ export async function offerRestAlertsOnce() {
       if (answer === 'yes') await requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: false } });
     }
     await saveSettings({ notificationsAsked: true });
+    // With notifications on, make sure Android can deliver them on time
+    if ((await getPermissionsAsync()).granted) await offerOnTimeAlerts();
   } catch (e) {
     console.warn('Could not ask about rest alerts', e instanceof Error ? e.message : '');
+  }
+}
+
+// ---------- on-time delivery (Android 12+) ----------
+// Without the "Alarms & reminders" permission, Android schedules the alert as an inexact alarm and may deliver it
+// seconds to minutes late. On Android 13+ the user has to switch it on in a system settings page.
+
+const needsExactAlarmPermission = () => Platform.OS === 'android' && Number(Platform.Version) >= 31;
+
+async function canAlertOnTime(): Promise<boolean> {
+  if (!needsExactAlarmPermission()) return true;
+  try {
+    return (await getExactAlarmPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+const explainOnTime = () =>
+  new Promise<boolean>(resolve =>
+    Alert.alert(
+      'Get rest alerts on time?',
+      "Android can delay omaFIT's rest alert by a minute or more to save battery. On the next screen, switch on " +
+        '"Allow setting alarms and reminders" for omaFIT, then come back. It\'s only used for the rest timer.',
+      [
+        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Open settings', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    ),
+  );
+
+/** Explains and opens Android's "Alarms & reminders" page for omaFIT, if rest alerts could be late. */
+async function offerOnTimeAlerts() {
+  if (await canAlertOnTime()) return;
+  const go = await explainOnTime();
+  await saveSettings({ onTimeAlertsAsked: true });
+  if (go) await requestExactAlarmPermissionsAsync();
+}
+
+export type RestAlertStatus = 'off' | 'late' | 'onTime';
+
+/** For Settings: notifications off, on but possibly late, or on time. */
+export async function restAlertStatus(): Promise<RestAlertStatus> {
+  try {
+    if (!(await getPermissionsAsync()).granted) return 'off';
+    return (await canAlertOnTime()) ? 'onTime' : 'late';
+  } catch {
+    return 'off';
+  }
+}
+
+/** For Settings: asks for whatever is missing (notifications, then on-time delivery). */
+export async function fixRestAlerts(): Promise<void> {
+  try {
+    await setUpOnce();
+    const current = await getPermissionsAsync();
+    if (!current.granted) {
+      if (!current.canAskAgain) {
+        Alert.alert('Notifications are off', 'Turn on notifications for omaFIT in your phone settings, then come back.');
+        return;
+      }
+      const res = await requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: false } });
+      if (!res.granted) return;
+    }
+    await offerOnTimeAlerts();
+  } catch (e) {
+    console.warn('Could not update rest alerts', e instanceof Error ? e.message : '');
   }
 }
 
@@ -126,6 +207,25 @@ export function scheduleRestAlert(seconds: number): Promise<boolean> {
     } catch (e) {
       console.warn('Could not schedule rest alert', e instanceof Error ? e.message : '');
       return false;
+    }
+  });
+}
+
+/**
+ * Rest just ended while omaFIT is open: sound the alert now instead of waiting for Android's alarm, which can be
+ * late. Replaces the scheduled one (same id), so it never sounds twice.
+ */
+export function soundRestAlertNow(): Promise<void> {
+  return inOrder(async () => {
+    try {
+      await cancelScheduledNotificationAsync(ALERT_ID).catch(() => {});
+      await scheduleNotificationAsync({
+        identifier: ALERT_ID,
+        content: { title: 'Rest over', body: 'Time for your next set.', sound: 'default' },
+        trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
+      });
+    } catch (e) {
+      console.warn('Could not sound rest alert', e instanceof Error ? e.message : '');
     }
   });
 }

@@ -10,7 +10,7 @@ import { cleanPains, lowerBackScore, maxPain, painsOf, redFlagsFor } from '../da
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { Session } from '../data/plan';
 import { RootStackParamList } from '../navigation';
-import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert } from '../session/restAlert';
+import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert, soundRestAlertNow } from '../session/restAlert';
 import {
   deleteLog,
   getSettings,
@@ -241,7 +241,12 @@ export default function SessionScreen({ route, navigation }: Props) {
       setNow(t);
       if (t < restEndsAt) return;
       // Rest is over. The scheduled notification plays the sound; without it, vibrate if the user is here now.
-      if (!alertScheduled.current && t - restEndsAt < 1500) Vibration.vibrate(REST_OVER_VIBRATION);
+      // Rest just ended while the user is looking at the app: sound it now rather than wait for Android's alarm,
+      // which can be late. Without notifications, a buzz is all we can do.
+      if (t - restEndsAt < 1500 && AppState.currentState === 'active') {
+        if (alertScheduled.current) void soundRestAlertNow();
+        Vibration.vibrate(REST_OVER_VIBRATION);
+      }
       alertScheduled.current = false;
       setRestEndsAt(null);
     };

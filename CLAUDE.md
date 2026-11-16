@@ -126,7 +126,7 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 - **Device access:** camera and photos only through `expo-image-picker` / `expo-image-manipulator` in
   `PlanBuilderScreen`. `Linking.openURL` only in `ExerciseScreen` (YouTube demos) and `AISettings` (fixed API-key
   page URLs). Notifications only through `expo-notifications` in `src/session/restAlert.ts`, for the local "rest over"
-  alert (no push notifications), asked once on first launch (`offerRestAlertsOnce`). No location, contacts, clipboard, sensors, device IDs or other notifications without
+  alert (no push notifications), asked once on first launch (`offerRestAlertsOnce`), then Android's "Alarms & reminders" (`SCHEDULE_EXACT_ALARM`, so the alert isn't delayed) is offered once and in Settings → Training. In the app the alert is a sound only (`soundRestAlertNow` at the exact moment); in another app it's a notification. No location, contacts, clipboard, sensors, device IDs or other notifications without
   the maintainer's approval. New permissions in `app.json` need it too.
 - **No tracking:** no analytics, crash reporters, ads or third-party SDKs that collect data.
 - **Dependencies:** add only with `npx expo install`, only when really needed, from well-known maintainers. Explain
