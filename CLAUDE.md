@@ -17,7 +17,8 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - React Navigation 7: native stack + bottom tabs (not Expo Router)
 - Storage on device only: AsyncStorage (logs, settings and profile, reviews, chat) and expo-secure-store (one AI API
   key per provider)
-- `@expo/vector-icons` (Ionicons) for the tab bar icons; the font ships in the app, nothing loads from the internet.
+- `@expo/vector-icons` (Ionicons) for the tab bar and session-type icons; the font ships in the app, nothing loads from the internet.
+- `expo-haptics` for a light tap when a set is ticked and a success buzz on Finish (SessionScreen only).
 - expo-image for demo photos. YouTube demo links open with `Linking`, with no extra package.
 - Develop outside OneDrive or other synced folders. Syncing breaks Metro's file watcher (stale bundles).
 
@@ -58,7 +59,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
 | `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (stored one month per key, `logs_v2_YYYY-MM`, migrated once from `logs_v1`, so no value nears Android's ~2 MB read limit; log writes run one at a time. A workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. "Skip" on the current exercise marks its sets not yet done `skipped` for that workout only (the plan is unchanged; tap the folded row to undo). Unfinished logs have no pain/effort rating. Pain is asked after every session and walk (a few older test-build logs have `painRated: false`). Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
 | `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard), `LogRow.tsx` (one logged entry in a list), `WeekPlan.tsx` ("Your week" on Today: tap a day for its exercises), `Section` in `ui.tsx` (Settings' open/close sections) |
-| `src/screens/` | Setup (first-run: welcome, level, equipment, AI key; sets `Settings.onboarded`), Today, Progress (incl. History), Session, Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
+| `src/screens/` | Setup (first-run: welcome, level, equipment, AI key; sets `Settings.onboarded`), Today (header with streak badge; at most one notice: pain › welcome back › equipment › posture check; one "Today" card with Full/Short, a numbered checklist and one Start button; Your week; other workouts), Progress (incl. History), Session (Focus mode: only the current exercise open, the rest as small rows; rest panel with countdown, +15 s, Skip and the next set; "Workout done" summary with sets, minutes, new bests from `personalBests()` and the streak), Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
 | `src/session/postureReminders.ts` | Opt-in posture-break reminders (`Settings.postureBreaks`): `syncPostureBreaks()` at launch and on change, `breakTimes()` |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |

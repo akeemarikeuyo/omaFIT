@@ -4,7 +4,7 @@ import { applyOverrides } from '../data/effective';
 import { comebackOffer, startDateForWeek } from '../data/comeback';
 import { upperBodyBalance } from '../data/library';
 import { dayKind, SESSIONS, weekProblem, weekText } from '../data/plan';
-import { exerciseHistory, summary } from '../data/progress';
+import { exerciseHistory, personalBests, summary } from '../data/progress';
 import { estimateSeconds, hasShortVersion, sessionMinutes, shortVersion } from '../data/sessionLength';
 import { upcomingDays } from '../data/week';
 import { programWeek } from '../storage/store';
@@ -187,5 +187,24 @@ describe('own training days', () => {
     expect(weekProblem({ strength: [1, 3], rest: 0 })).toMatch(/3 strength days/);
     expect(weekProblem({ strength: [1, 3, 5], rest: 5 })).toMatch(/rest day/);
     expect(dayKind(day(2026, 11, 23), { strength: [1], rest: 1 })).toBe('strength');
+  });
+});
+
+describe('personalBests', () => {
+  const squat = (d: number, kg: number) =>
+    workoutOn(day(2026, 11, d), [{ exerciseId: 'goblet-squat', setIndex: 0, done: true, weightKg: kg, reps: 10 }]);
+
+  it('reports a heavier set than any earlier workout', () => {
+    const today = squat(25, 18);
+    expect(personalBests([today, squat(20, 16), squat(18, 14)], today)).toEqual([
+      { exerciseId: 'goblet-squat', weightKg: 18, previousKg: 16 },
+    ]);
+  });
+
+  it('says nothing the first time, or when it is not heavier', () => {
+    const first = squat(25, 18);
+    expect(personalBests([first], first)).toEqual([]);
+    const same = squat(25, 16);
+    expect(personalBests([same, squat(20, 16)], same)).toEqual([]);
   });
 });

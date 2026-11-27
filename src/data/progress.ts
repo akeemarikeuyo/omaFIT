@@ -1,5 +1,5 @@
 // Daily progress stats built from the workout logs. Read-only: nothing here is stored.
-import { AnyLog, isPainRated } from '../storage/store';
+import { AnyLog, isPainRated, WorkoutLog } from '../storage/store';
 import { maxPain, painLabel, painsOf } from './pain';
 import { dayKind, DEFAULT_WEEK, WeekSetup } from './plan';
 
@@ -186,4 +186,26 @@ export function exerciseHistory(logs: AnyLog[], exerciseId: string): ExercisePoi
 /** The number to chart: weight if this exercise has logged weights, otherwise reps. */
 export function pointValue(p: ExercisePoint, byWeight: boolean): number {
   return (byWeight ? p.weightKg : p.reps) ?? 0;
+}
+
+export interface PersonalBest {
+  exerciseId: string;
+  weightKg: number;
+  previousKg: number;
+}
+
+/** Exercises where this workout's heaviest ticked set beats every earlier workout. Needs an earlier weight to beat. */
+export function personalBests(logs: AnyLog[], workout: WorkoutLog): PersonalBest[] {
+  const out: PersonalBest[] = [];
+  const ids = [...new Set(workout.sets.map(s => s.exerciseId))];
+  const earlier = logs.filter(l => l.id !== workout.id && l.date < workout.date);
+  for (const id of ids) {
+    const now = Math.max(-1, ...workout.sets.filter(s => s.exerciseId === id && s.done && s.weightKg != null).map(s => s.weightKg!));
+    if (now <= 0) continue;
+    const before = exerciseHistory(earlier, id).filter(p => p.weightKg != null);
+    if (!before.length) continue;
+    const previousKg = Math.max(...before.map(p => p.weightKg!));
+    if (now > previousKg) out.push({ exerciseId: id, weightKg: now, previousKg });
+  }
+  return out;
 }
