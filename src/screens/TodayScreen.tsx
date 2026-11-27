@@ -7,11 +7,13 @@ import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { LogRow } from '../components/LogRow';
 import { Button, Pill } from '../components/ui';
-import { effectivePlan } from '../data/effective';
+import { WeekPlan } from '../components/WeekPlan';
+import { EffectiveExercise, effectivePlan } from '../data/effective';
 import { planMisfits } from '../data/library';
 import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
+import { upcomingDays } from '../data/week';
 import { RootStackParamList } from '../navigation';
 import {
   AnyLog,
@@ -31,6 +33,8 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function TodayScreen() {
   const nav = useNavigation<Nav>();
   const [week, setWeek] = useState(1);
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Record<SessionId, EffectiveExercise[]> | null>(null);
   const [next, setNext] = useState<'A' | 'B'>('A');
   const [logs, setLogs] = useState<AnyLog[]>([]);
   const [open, setOpen] = useState<WorkoutLog | null>(null);
@@ -40,14 +44,14 @@ export default function TodayScreen() {
   const load = useCallback(async () => {
     const s = await getSettings();
     setWeek(programWeek(s.startDate));
+    setStartDate(s.startDate);
     setNext(await nextStrengthSession());
     setLogs(await getLogs());
     setOpen(await unfinishedToday());
+    const current = await effectivePlan();
+    setPlan(current);
     // Only once the user has picked their own equipment: the default plan fits the default kit
-    if (s.equipment) {
-      const plan = await effectivePlan();
-      setMisfits(planMisfits([...plan.posture, ...plan.A, ...plan.B], s.equipment));
-    } else setMisfits([]);
+    setMisfits(s.equipment ? planMisfits([...current.posture, ...current.A, ...current.B], s.equipment) : []);
   }, []);
 
   useFocusEffect(
@@ -85,6 +89,8 @@ export default function TodayScreen() {
   const painHigh = highPains.length > 0;
 
   const start = (id: SessionId) => nav.navigate('Session', { sessionId: id });
+  // Today's strength session if today is a strength day, otherwise the next one; the week alternates from there
+  const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next) : [];
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
@@ -215,6 +221,14 @@ export default function TodayScreen() {
             <Text style={ui.h2}>Rest day</Text>
             <Text style={ui.muted}>Just the posture routine. Strength sessions need the recovery.</Text>
           </View>
+        )}
+
+        {days.length > 0 && (
+          <WeekPlan
+            days={days}
+            plan={plan}
+            onOpenExercise={(sessionId, exerciseId) => nav.navigate('Exercise', { sessionId, exerciseId })}
+          />
         )}
 
         <View style={ui.card}>
