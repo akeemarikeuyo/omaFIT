@@ -7,10 +7,10 @@ import { ChartMode, DailyChart } from '../components/DailyChart';
 import { LogRow } from '../components/LogRow';
 import { Button, painColor, Segmented } from '../components/ui';
 import { EffectiveExercise, effectivePlan } from '../data/effective';
-import { SessionId } from '../data/plan';
+import { SessionId, WeekSetup } from '../data/plan';
 import { dailyStats, encouragement, exerciseHistory, painPlaces, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
-import { AnyLog, getLogs } from '../storage/store';
+import { AnyLog, getLogs, getSettings, weekOf } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 const MODES: { id: ChartMode; label: string }[] = [
@@ -30,6 +30,7 @@ export default function ProgressScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [logs, setLogs] = useState<AnyLog[]>([]);
   const [plan, setPlan] = useState<Record<SessionId, EffectiveExercise[]> | null>(null);
+  const [userWeek, setUserWeek] = useState<WeekSetup | undefined>(undefined);
   const [mode, setMode] = useState<ChartMode>('sets');
   const [range, setRange] = useState(14);
   const [historyCount, setHistoryCount] = useState(HISTORY_PAGE);
@@ -41,10 +42,11 @@ export default function ProgressScreen() {
     useCallback(() => {
       getLogs().then(setLogs);
       effectivePlan().then(setPlan);
+      getSettings().then(st => setUserWeek(weekOf(st)));
     }, []),
   );
 
-  const s = summary(logs);
+  const s = summary(logs, new Date(), userWeek);
   const days = dailyStats(logs, range);
   const activeDays = days.filter(d => d.active).length;
 

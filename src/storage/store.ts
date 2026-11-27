@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { SessionId } from '../data/plan';
+import { DEFAULT_WEEK, SessionId, WeekSetup } from '../data/plan';
 
 // ---------- API keys (phone's secure storage, never in the code) ----------
 
@@ -102,7 +102,10 @@ export interface Settings {
   postureBreaks?: { on: boolean; startHour: number; endHour: number };
   /** "Not now" on the posture check-in card hides it until this date. See src/data/postureCheck.ts. */
   postureCheckSnoozedUntil?: string;
+  /** The user's strength and rest days. Missing = Mon/Wed/Fri strength, Sunday rest. Read with weekOf(). */
+  week?: WeekSetup;
 }
+export const weekOf = (s: Settings): WeekSetup => s.week ?? DEFAULT_WEEK;
 const SETTINGS = 'settings_v1';
 
 export const MIN_REST_SECONDS = 60;

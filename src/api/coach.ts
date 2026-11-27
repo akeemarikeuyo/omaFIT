@@ -3,7 +3,7 @@ import { BODYWEIGHT, candidates, EQUIPMENT_OPTIONS, SKIPPING_ROPE, equipmentLabe
 import { levelInfo, levelOf } from '../data/level';
 import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
 import { reviewStatus } from '../data/reviewSchedule';
-import { SessionId } from '../data/plan';
+import { SessionId, weekText } from '../data/plan';
 import {
   AnyLog,
   ChatMessage,
@@ -17,6 +17,7 @@ import {
   programWeek,
   ReviewChange,
   Settings,
+  weekOf,
 } from '../storage/store';
 import { AIError, askAI } from './ai';
 import { findDemo } from './demos';
@@ -29,9 +30,10 @@ const DEFAULT_KIT =
   'adjustable barbell + flat/incline bench with low rack uprights, leg extension/curl bench attachment, ' +
   'adjustable plastic-plate dumbbells, push-up bars, ab wheel, two long loop bands (red lighter, black heavier), yoga mat, ' +
   'posture-corrector strap. No pull-up bar, no cables, no machines.';
-const SCHEDULE =
-  'Schedule: strength Mon/Wed/Fri alternating Day A and Day B, walks Tue/Thu (run-walk from program week 5), ' +
-  'long walk Sat, rest Sun, a 10-minute posture routine daily.';
+/** The user's week (set in Settings), e.g. strength Mon/Wed/Fri. */
+const schedule = (s: Settings) =>
+  `Schedule (set by the user): ${weekText(weekOf(s))}. Strength days alternate Day A and Day B; walks become ` +
+  'run-walk from program week 5; a 10-minute posture routine daily.';
 
 function equipmentText(s: Settings): string {
   const notes = s.equipmentNotes?.trim() ? ` Notes from the user: ${s.equipmentNotes.trim()}.` : '';
@@ -63,7 +65,7 @@ function athleteProfile(s: Settings): string {
     s.bodyweightKg ? `Bodyweight: ${s.bodyweightKg} kg.` : null,
     `Training level (set by the user): ${levelInfo(levelOf(s)).aiGuide} Fit sets, reps, session length and progression to this level.`,
     equipmentText(s),
-    SCHEDULE,
+    schedule(s),
   ]
     .filter(Boolean)
     .join('\n');

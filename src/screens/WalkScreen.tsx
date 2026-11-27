@@ -8,7 +8,7 @@ import { Button, Segmented } from '../components/ui';
 import { cleanPains, lowerBackScore, maxPain, redFlagsFor } from '../data/pain';
 import { CardioType, walkToday, WalkToday } from '../data/plan';
 import { RootStackParamList } from '../navigation';
-import { addLog, getSettings, PainEntry, programWeek } from '../storage/store';
+import { addLog, getSettings, PainEntry, programWeek, weekOf } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Walk'>;
@@ -30,7 +30,7 @@ export default function WalkScreen({ navigation }: Props) {
 
   useEffect(() => {
     getSettings().then(s => {
-      const p = walkToday(new Date(), programWeek(s.startDate));
+      const p = walkToday(new Date(), programWeek(s.startDate), weekOf(s));
       setPlan(p);
       setType(p.type);
       setMinutes(String(p.minutes));

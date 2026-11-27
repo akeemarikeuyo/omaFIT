@@ -1,7 +1,7 @@
 // Daily progress stats built from the workout logs. Read-only: nothing here is stored.
 import { AnyLog, isPainRated } from '../storage/store';
 import { maxPain, painLabel, painsOf } from './pain';
-import { dayKind } from './plan';
+import { dayKind, DEFAULT_WEEK, WeekSetup } from './plan';
 
 /** Local calendar day as YYYY-MM-DD (logs are stored in UTC, but a day is your day). */
 export function dayKey(d: Date): string {
@@ -79,12 +79,12 @@ export interface Summary {
   restToday: boolean;
 }
 
-export function summary(logs: AnyLog[], now = new Date()): Summary {
+export function summary(logs: AnyLog[], now = new Date(), week: WeekSetup = DEFAULT_WEEK): Summary {
   const activeDays = new Set(logs.map(l => dayKey(new Date(l.date))));
   const shift = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n);
 
   const activeToday = activeDays.has(dayKey(now));
-  const restToday = dayKind(now) === 'rest';
+  const restToday = dayKind(now, week) === 'rest';
 
   // Walk day by day from the first log to today. A logged day adds to the run; a planned rest day
   // adds only when a run is going, so resting on plan never breaks a streak but can't start one.
@@ -101,7 +101,7 @@ export function summary(logs: AnyLog[], now = new Date()): Summary {
       if (i === 0) runBeforeToday = run;
       const day = shift(i);
       if (activeDays.has(dayKey(day))) run++;
-      else if (dayKind(day) === 'rest' && run > 0) run++;
+      else if (dayKind(day, week) === 'rest' && run > 0) run++;
       else run = 0;
       bestStreak = Math.max(bestStreak, run);
     }

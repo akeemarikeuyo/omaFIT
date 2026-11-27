@@ -32,6 +32,7 @@ import {
   saveSettings,
   Settings,
   unfinishedToday,
+  weekOf,
   WorkoutLog,
 } from '../storage/store';
 import { colors, space, ui } from '../theme';
@@ -73,8 +74,9 @@ export default function TodayScreen() {
   );
 
   const today = new Date();
-  const kind = dayKind(today);
-  const walk = walkToday(today, week);
+  const userWeek = settings ? weekOf(settings) : undefined;
+  const kind = dayKind(today, userWeek);
+  const walk = walkToday(today, week, userWeek);
   // "Done" means finished today (your local day). An unfinished workout shows as Continue instead.
   // Done cards open a read-only summary: a finished day isn't edited again.
   const doneToday = logs.filter(l => dayKey(new Date(l.date)) === dayKey(today) && !isUnfinished(l));
@@ -85,7 +87,7 @@ export default function TodayScreen() {
   const strengthId: SessionId = strengthLog?.session ?? next;
   const view = (l: AnyLog) => nav.navigate('LogDetail', { logId: l.id });
 
-  const stats = summary(logs);
+  const stats = summary(logs, today, userWeek);
   const last7 = dailyStats(logs, 7);
 
   // Places rated 6 or more in the last 3 logs that asked about pain (strength days)
@@ -136,7 +138,7 @@ export default function TodayScreen() {
   };
   const away = comeback && (comeback.daysAway < 28 ? `${comeback.daysAway} days` : `${Math.floor(comeback.daysAway / 7)} weeks`);
   // Today's strength session if today is a strength day, otherwise the next one; the week alternates from there
-  const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next) : [];
+  const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next, userWeek) : [];
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
@@ -207,7 +209,7 @@ export default function TodayScreen() {
                     height: 10,
                     borderRadius: 5,
                     // A planned rest day shows dimmer: it keeps the streak
-                    backgroundColor: d.active ? colors.accent : dayKind(d.date) === 'rest' ? `${colors.accent}66` : colors.cardAlt,
+                    backgroundColor: d.active ? colors.accent : dayKind(d.date, userWeek) === 'rest' ? `${colors.accent}66` : colors.cardAlt,
                     borderWidth: d.key === last7[6].key ? 1 : 0,
                     borderColor: colors.accent,
                   }}

@@ -40,7 +40,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | Path | What |
 | --- | --- |
 | `App.tsx` | Navigation: tabs (Today, Progress, Review, Coach, Settings) + stack (Session, Walk, LogDetail, Exercise, PlanBuilder, Setup); launch screen; first-run Setup for new installs (skipped when logs exist) |
-| `src/data/plan.ts` | Baseline plan: posture routine, Day A, Day B, walking plan, weekday schedule, red-flag text. Exercises can have `demoId` (photos) and `videoUrl` (YouTube Short). |
+| `src/data/plan.ts` | Baseline plan: posture routine, Day A, Day B, walking plan, the week (`WeekSetup`: 3 strength days + 1 rest day, `DEFAULT_WEEK`, `dayKind`, `weekText`, `weekProblem`), red-flag text. Exercises can have `demoId` (photos) and `videoUrl` (YouTube Short). |
 | `src/data/effective.ts` | Baseline plan + approved changes (overrides incl. `removed`, swaps with `demoId`, AI-added library exercises); `effectivePlan()`, `exerciseLabel()`, `planAsText()` |
 | `src/data/library.ts` | What the AI may pick: `rejectReason()` (equipment fit with substitutes, banned lifts, the user's training level, category, posture-routine limits; skipping rope as a strength-day warm-up/finisher only), Bodyweight and Skipping rope as ordinary equipment items, `candidates()`, `upperBodyBalance()`, added-exercise ids `lib-<session>-<libraryId>` |
 | `src/data/level.ts` | Training level (`Settings.level`, default beginner): what each level means, which library difficulty `rejectReason` allows (beginner → beginner-level only; expert always blocked), and the guide the AI gets for sets, reps and session length |
@@ -158,5 +158,7 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 
 ## Testing
 No automated tests yet. After a change, run `npm run check`, then check it on a phone in Expo Go.
-Weekday logic: Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Use "Start a new
+Weekday logic (default week; users can change it in Settings → Training → Your week, `Settings.week`, read with
+`weekOf()`): Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Always pass the user's week
+to `dayKind`, `walkToday`, `upcomingDays` and `summary`. Use "Start a new
 session" on Today to test strength screens on other days.
