@@ -96,6 +96,8 @@ export interface Settings {
   planResetAt?: string;
   /** Full or Short sessions, the user's last choice on Today. Missing = full. See src/data/sessionLength.ts. */
   sessionLength?: 'full' | 'short';
+  /** The break (its last active day) whose "pick up where you left off" offer was answered. See src/data/comeback.ts. */
+  comebackAnswered?: string;
 }
 const SETTINGS = 'settings_v1';
 

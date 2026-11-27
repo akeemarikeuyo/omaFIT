@@ -14,6 +14,7 @@ import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
 import { upcomingDays } from '../data/week';
+import { comebackOffer, startDateForWeek } from '../data/comeback';
 import { hasShortVersion, SessionLength, sessionMinutes, shortVersion } from '../data/sessionLength';
 import { RootStackParamList } from '../navigation';
 import {
@@ -111,6 +112,18 @@ export default function TodayScreen() {
   const dayMinutes = (l: SessionLength) => todo.reduce((n, id) => n + minutesFor(id, l), 0);
 
   const start = (id: SessionId) => nav.navigate('Session', { sessionId: id, short: length === 'short' });
+
+  // Back after a break: offer to pick up the program where the user left off
+  const comeback = settings && startDate ? comebackOffer(logs, startDate, settings.comebackAnswered) : null;
+  const answerComeback = async (resume: boolean) => {
+    if (!comeback) return;
+    await saveSettings({
+      comebackAnswered: comeback.key,
+      ...(resume ? { startDate: startDateForWeek(comeback.resumeWeek) } : {}),
+    });
+    await load();
+  };
+  const away = comeback && (comeback.daysAway < 28 ? `${comeback.daysAway} days` : `${Math.floor(comeback.daysAway / 7)} weeks`);
   // Today's strength session if today is a strength day, otherwise the next one; the week alternates from there
   const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next) : [];
 
@@ -138,6 +151,23 @@ export default function TodayScreen() {
             </Text>
             <Text style={{ color: colors.accent, fontWeight: '700' }}>Continue →</Text>
           </Pressable>
+        )}
+
+        {comeback && (
+          <View style={[ui.card, { borderColor: colors.accent, gap: space.sm }]}>
+            <Text style={ui.h2}>Welcome back</Text>
+            <Text style={ui.muted}>
+              {comeback.neverStarted
+                ? `You set up omaFIT ${away} ago. The plan has moved on to week ${comeback.weekNow} without you. `
+                : `Your last workout was ${away} ago. The plan has moved on to week ${comeback.weekNow}. `}
+              Start at week {comeback.resumeWeek} instead, so the walks and runs match what your body is used to.
+            </Text>
+            {!comeback.neverStarted && (
+              <Text style={ui.small}>Go a little lighter on weights in your first strength session back.</Text>
+            )}
+            <Button title={`Start at week ${comeback.resumeWeek}`} onPress={() => answerComeback(true)} />
+            <Button title={`Keep week ${comeback.weekNow}`} kind="secondary" onPress={() => answerComeback(false)} />
+          </View>
         )}
 
         <Pressable onPress={() => nav.navigate('Tabs', { screen: 'Progress' })} style={ui.card}>
