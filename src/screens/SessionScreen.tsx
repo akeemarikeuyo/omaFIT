@@ -31,6 +31,8 @@ interface SetState {
   reps: string;
   weight: string;
   done: boolean;
+  /** Not done because the user skipped the exercise. Cleared again if they undo the skip. */
+  skipped: boolean;
 }
 
 const isTimed = (reps: string) => /s\b|sec/i.test(reps);
@@ -57,6 +59,7 @@ function toSetLogs(exercises: EffectiveExercise[], sets: Record<string, SetState
       exerciseId: ex.id,
       setIndex: i,
       done: s.done,
+      skipped: !s.done && s.skipped ? true : undefined,
       reps: numberOrUndefined(s.reps),
       weightKg: numberOrUndefined(s.weight),
     })),
@@ -114,12 +117,13 @@ export default function SessionScreen({ route, navigation }: Props) {
         initial[ex.id] = Array.from({ length: ex.sets }, (_, i) => {
           const saved = open?.sets.find(x => x.exerciseId === ex.id && x.setIndex === i);
           if (saved) {
-            return { reps: saved.reps != null ? String(saved.reps) : '', weight: saved.weightKg != null ? String(saved.weightKg) : '', done: saved.done };
+            return { reps: saved.reps != null ? String(saved.reps) : '', weight: saved.weightKg != null ? String(saved.weightKg) : '', done: saved.done, skipped: !saved.done && !!saved.skipped };
           }
           return {
             reps: isTimed(ex.reps) ? '' : firstNumber(ex.reps),
             weight: ex.loaded && weight != null ? String(weight) : '',
             done: false,
+            skipped: false,
           };
         });
         if (prev) {
@@ -282,8 +286,12 @@ export default function SessionScreen({ route, navigation }: Props) {
     if (!wasDone && session) startRest(restSeconds);
   };
 
-  // The exercise the user is on: the first one with a set still to do
-  const currentId = exercises.find(ex => (sets[ex.id] ?? []).some(x => !x.done))?.id;
+  // The exercise the user is on: the first one with a set still to do (skipped sets don't count)
+  const currentId = exercises.find(ex => (sets[ex.id] ?? []).some(x => !x.done && !x.skipped))?.id;
+
+  /** Skips the sets left on this exercise for this workout only. Ticked sets stay. */
+  const setSkipped = (exId: string, skipped: boolean) =>
+    setSets(cur => ({ ...cur, [exId]: cur[exId].map(s => ({ ...s, skipped: skipped && !s.done })) }));
   const toggleExpanded = (id: string) =>
     setExpanded(cur => {
       const next = new Set(cur);
@@ -292,7 +300,8 @@ export default function SessionScreen({ route, navigation }: Props) {
       return next;
     });
 
-  const totalSets = Object.values(sets).reduce((n, a) => n + a.length, 0);
+  // Skipped sets leave the total, so the bar can still reach the end
+  const totalSets = Object.values(sets).reduce((n, a) => n + a.filter(s => !s.skipped).length, 0);
   const doneSets = Object.values(sets).reduce((n, a) => n + a.filter(s => s.done).length, 0);
 
   const finish = async () => {
@@ -369,7 +378,28 @@ export default function SessionScreen({ route, navigation }: Props) {
           const exSets = sets[ex.id] ?? [];
           const done = exSets.filter(s => s.done).length;
           const complete = exSets.length > 0 && done === exSets.length;
+          const skipped = exSets.some(s => s.skipped);
           const isCurrent = ex.id === currentId;
+          // A skipped exercise folds away too; tap it to bring it back
+          if (skipped) {
+            return (
+              <Pressable
+                key={ex.id}
+                onPress={() => setSkipped(ex.id, false)}
+                accessibilityRole="button"
+                accessibilityLabel={`${ex.name}, skipped. Tap to undo.`}
+                style={[ui.card, ui.row, { justifyContent: 'space-between', paddingVertical: space.sm }]}
+              >
+                <View style={[ui.row, { flex: 1 }]}>
+                  <Ionicons name="play-skip-forward-circle-outline" size={22} color={colors.muted} />
+                  <Text style={[ui.muted, { flex: 1 }]} numberOfLines={1}>
+                    {ex.name}
+                  </Text>
+                </View>
+                <Text style={ui.small}>{done > 0 ? `${done}/${exSets.length} sets · ` : ''}Skipped · undo</Text>
+              </Pressable>
+            );
+          }
           // Finished exercises fold away to keep the one you're on in view; tap to open them again
           if (complete && !expanded.has(ex.id)) {
             return (
@@ -401,7 +431,17 @@ export default function SessionScreen({ route, navigation }: Props) {
                   </Text>
                 </Pressable>
                 {isCurrent ? (
-                  <Pill text="Now" color={colors.accent} />
+                  <View style={ui.row}>
+                    <Pressable
+                      onPress={() => setSkipped(ex.id, true)}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Skip ${ex.name} this workout`}
+                    >
+                      <Text style={ui.small}>Skip</Text>
+                    </Pressable>
+                    <Pill text="Now" color={colors.accent} />
+                  </View>
                 ) : complete ? (
                   <Pressable onPress={() => toggleExpanded(ex.id)} hitSlop={10} accessibilityRole="button">
                     <Text style={ui.small}>Hide</Text>

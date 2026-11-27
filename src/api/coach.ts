@@ -115,6 +115,12 @@ export function logsAsText(logs: AnyLog[]): string {
       }
       const byEx = new Map<string, string[]>();
       for (const s of l.sets) {
+        // The user chose to skip the rest of this exercise in this workout
+        if (s.skipped) {
+          const cur = byEx.get(s.exerciseId) ?? [];
+          if (!cur.includes('skipped the rest')) byEx.set(s.exerciseId, [...cur, cur.length ? 'skipped the rest' : 'skipped']);
+          continue;
+        }
         if (!s.done) continue;
         const parts = [s.weightKg != null ? `${s.weightKg}kg` : null, s.reps != null ? `${s.reps}` : null]
           .filter(Boolean)

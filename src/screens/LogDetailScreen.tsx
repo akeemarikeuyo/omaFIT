@@ -20,11 +20,12 @@ const setText = (s: SetLog) =>
 
 /** Sets grouped by exercise, in the order they were logged. */
 function byExercise(sets: SetLog[]) {
-  const groups: { id: string; done: SetLog[]; total: number }[] = [];
+  const groups: { id: string; done: SetLog[]; total: number; skipped: boolean }[] = [];
   for (const s of sets) {
     let g = groups.find(x => x.id === s.exerciseId);
-    if (!g) groups.push((g = { id: s.exerciseId, done: [], total: 0 }));
+    if (!g) groups.push((g = { id: s.exerciseId, done: [], total: 0, skipped: false }));
     g.total++;
+    if (s.skipped) g.skipped = true;
     if (s.done) g.done.push(s);
   }
   return groups;
@@ -85,7 +86,7 @@ export default function LogDetailScreen({ route, navigation }: Props) {
             </Text>
             {g.done.length > 0 && g.done.length < g.total && (
               <Text style={ui.small}>
-                {g.done.length} of {g.total} sets
+                {g.done.length} of {g.total} sets{g.skipped ? ', skipped the rest' : ''}
               </Text>
             )}
           </View>

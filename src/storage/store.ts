@@ -131,6 +131,8 @@ export interface SetLog {
   reps?: number;
   weightKg?: number;
   done: boolean;
+  /** The user skipped the rest of this exercise in this workout. Only on sets not done; the plan is unchanged. */
+  skipped?: boolean;
 }
 /** Where it hurts. See src/data/pain.ts for labels and which areas have a side. */
 export type PainArea = 'neck' | 'upper-back' | 'lower-back' | 'shoulder' | 'elbow' | 'wrist' | 'hip' | 'knee' | 'ankle' | 'other';
