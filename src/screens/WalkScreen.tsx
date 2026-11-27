@@ -66,6 +66,7 @@ export default function WalkScreen({ navigation }: Props) {
         <Text style={ui.small}>Today's plan · weeks {plan.weeks}</Text>
         <Text style={ui.h2}>{plan.target}</Text>
         <Text style={ui.muted}>Talking pace: you should be able to speak in full sentences. Running shoes, not slides.</Text>
+        <Text style={ui.small}>Can't walk or run today? Skipping with a rope counts instead: pick Skipping below.</Text>
       </View>
 
       <View style={[ui.card, { gap: space.md }]}>

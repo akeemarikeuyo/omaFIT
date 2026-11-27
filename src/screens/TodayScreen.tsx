@@ -203,7 +203,7 @@ export default function TodayScreen() {
               {cardioLog?.kind === 'cardio' ? `You did: ${cardioLog.type} · ${cardioLog.minutes} min` : walk.target}
             </Text>
             {!cardioLog && (
-              <Text style={ui.small}>Weeks {walk.weeks} of the plan. Talking pace. Running shoes, not slides.</Text>
+              <Text style={ui.small}>Weeks {walk.weeks} of the plan. Talking pace. Running shoes, not slides. Can't walk or run? Skipping counts too.</Text>
             )}
             <CardLink done={!!cardioLog} />
           </Pressable>
