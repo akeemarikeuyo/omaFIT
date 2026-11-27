@@ -9,8 +9,9 @@ import { Button, Pill, ScalePicker } from '../components/ui';
 import { cleanPains, lowerBackScore, maxPain, painsOf, redFlagsFor } from '../data/pain';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { Session } from '../data/plan';
+import { estimateSeconds, hasShortVersion, shortVersion } from '../data/sessionLength';
 import { RootStackParamList } from '../navigation';
-import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert } from '../session/restAlert';
+import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert, soundRestAlertNow } from '../session/restAlert';
 import {
   deleteLog,
   getSettings,
@@ -31,6 +32,8 @@ interface SetState {
   reps: string;
   weight: string;
   done: boolean;
+  /** Not done because the user skipped the exercise. Cleared again if they undo the skip. */
+  skipped: boolean;
 }
 
 const isTimed = (reps: string) => /s\b|sec/i.test(reps);
@@ -57,6 +60,7 @@ function toSetLogs(exercises: EffectiveExercise[], sets: Record<string, SetState
       exerciseId: ex.id,
       setIndex: i,
       done: s.done,
+      skipped: !s.done && s.skipped ? true : undefined,
       reps: numberOrUndefined(s.reps),
       weightKg: numberOrUndefined(s.weight),
     })),
@@ -93,18 +97,23 @@ export default function SessionScreen({ route, navigation }: Props) {
   const startedAt = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [resumed, setResumed] = useState(false);
+  // The Short version: key exercises only, fewer sets. A workout continued today keeps the length it started with.
+  const [short, setShort] = useState(false);
   const finishing = useRef(false);
   // Saves run one after another, so an older save can never overwrite a newer one
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     (async () => {
-      const { session: s, exercises: exs } = await effectiveSession(sessionId);
+      const { session: s, exercises: all } = await effectiveSession(sessionId);
       const open = await unfinishedToday(sessionId);
+      const isShort = (open ? !!open.short : !!route.params.short) && hasShortVersion(all);
+      const exs = isShort ? shortVersion(all) : all;
+      setShort(isShort);
       setSession(s);
       setExercises(exs);
       setRestSeconds(restSecondsFor(s, await getSettings()));
-      navigation.setOptions({ title: s.title });
+      navigation.setOptions({ title: isShort ? `${s.title} · Short` : s.title });
       const initial: Record<string, SetState[]> = {};
       const last: Record<string, string> = {};
       for (const ex of exs) {
@@ -114,12 +123,13 @@ export default function SessionScreen({ route, navigation }: Props) {
         initial[ex.id] = Array.from({ length: ex.sets }, (_, i) => {
           const saved = open?.sets.find(x => x.exerciseId === ex.id && x.setIndex === i);
           if (saved) {
-            return { reps: saved.reps != null ? String(saved.reps) : '', weight: saved.weightKg != null ? String(saved.weightKg) : '', done: saved.done };
+            return { reps: saved.reps != null ? String(saved.reps) : '', weight: saved.weightKg != null ? String(saved.weightKg) : '', done: saved.done, skipped: !saved.done && !!saved.skipped };
           }
           return {
             reps: isTimed(ex.reps) ? '' : firstNumber(ex.reps),
             weight: ex.loaded && weight != null ? String(weight) : '',
             done: false,
+            skipped: false,
           };
         });
         if (prev) {
@@ -140,7 +150,7 @@ export default function SessionScreen({ route, navigation }: Props) {
       setLastText(last);
       setLoaded(true);
     })();
-  }, [sessionId, navigation]);
+  }, [sessionId, navigation, route.params.short]);
 
   /** Saves the workout so far as unfinished. Nothing is saved until a set is ticked; untick them all and it's removed. */
   const saveProgress = useCallback(
@@ -169,12 +179,13 @@ export default function SessionScreen({ route, navigation }: Props) {
             effort: snapshot.effort,
             notes: snapshot.notes,
             finished: false,
+            short: short || undefined,
           };
           await saveWorkout(log);
         })
         .catch(() => console.warn('Could not save workout progress'));
     },
-    [exercises, sessionId],
+    [exercises, sessionId, short],
   );
 
   // Save shortly after any change. The latest state is also saved when the app goes to the background or the
@@ -241,7 +252,12 @@ export default function SessionScreen({ route, navigation }: Props) {
       setNow(t);
       if (t < restEndsAt) return;
       // Rest is over. The scheduled notification plays the sound; without it, vibrate if the user is here now.
-      if (!alertScheduled.current && t - restEndsAt < 1500) Vibration.vibrate(REST_OVER_VIBRATION);
+      // Rest just ended while the user is looking at the app: sound it now rather than wait for Android's alarm,
+      // which can be late. Without notifications, a buzz is all we can do.
+      if (t - restEndsAt < 1500 && AppState.currentState === 'active') {
+        if (alertScheduled.current) void soundRestAlertNow();
+        Vibration.vibrate(REST_OVER_VIBRATION);
+      }
       alertScheduled.current = false;
       setRestEndsAt(null);
     };
@@ -277,8 +293,12 @@ export default function SessionScreen({ route, navigation }: Props) {
     if (!wasDone && session) startRest(restSeconds);
   };
 
-  // The exercise the user is on: the first one with a set still to do
-  const currentId = exercises.find(ex => (sets[ex.id] ?? []).some(x => !x.done))?.id;
+  // The exercise the user is on: the first one with a set still to do (skipped sets don't count)
+  const currentId = exercises.find(ex => (sets[ex.id] ?? []).some(x => !x.done && !x.skipped))?.id;
+
+  /** Skips the sets left on this exercise for this workout only. Ticked sets stay. */
+  const setSkipped = (exId: string, skipped: boolean) =>
+    setSets(cur => ({ ...cur, [exId]: cur[exId].map(s => ({ ...s, skipped: skipped && !s.done })) }));
   const toggleExpanded = (id: string) =>
     setExpanded(cur => {
       const next = new Set(cur);
@@ -287,8 +307,17 @@ export default function SessionScreen({ route, navigation }: Props) {
       return next;
     });
 
-  const totalSets = Object.values(sets).reduce((n, a) => n + a.length, 0);
+  // Skipped sets leave the total, so the bar can still reach the end
+  const totalSets = Object.values(sets).reduce((n, a) => n + a.filter(s => !s.skipped).length, 0);
   const doneSets = Object.values(sets).reduce((n, a) => n + a.filter(s => s.done).length, 0);
+
+  // Where you are and roughly how long is left, so the end is always in sight
+  const currentIndex = exercises.findIndex(ex => ex.id === currentId);
+  const secondsLeft = estimateSeconds(
+    exercises.map(ex => ({ ex, sets: (sets[ex.id] ?? []).filter(x => !x.done && !x.skipped).length })),
+    restSeconds,
+  );
+  const minutesLeft = Math.max(1, Math.round(secondsLeft / 60));
 
   const finish = async () => {
     if (doneSets === 0) return Alert.alert('Tick off at least one set first.');
@@ -307,6 +336,7 @@ export default function SessionScreen({ route, navigation }: Props) {
       effort,
       notes,
       finished: true,
+      short: short || undefined,
     });
     if (maxPain(rated) >= 7) {
       Alert.alert('Saved. Take it easy.', `That is a high pain score. ${redFlagsFor(rated.filter(p => p.score >= 7))}`);
@@ -343,12 +373,14 @@ export default function SessionScreen({ route, navigation }: Props) {
         <View style={{ gap: 4 }}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
             <Text style={ui.h3}>
-              {doneSets} of {totalSets} sets
-            </Text>
-            <Text style={ui.small}>
-              {restSeconds} s rest{sessionId !== 'posture' ? ' (change in Settings)' : ''}
+              {currentIndex >= 0
+                ? `Exercise ${currentIndex + 1} of ${exercises.length} · about ${minutesLeft} min left`
+                : 'Nothing left: finish below'}
             </Text>
           </View>
+          <Text style={ui.small}>
+            {doneSets} of {totalSets} sets · {restSeconds} s rest{sessionId !== 'posture' ? ' (change in Settings)' : ''}
+          </Text>
           <View
             style={{ height: 8, borderRadius: 4, backgroundColor: colors.cardAlt, overflow: 'hidden' }}
             accessibilityRole="progressbar"
@@ -364,7 +396,28 @@ export default function SessionScreen({ route, navigation }: Props) {
           const exSets = sets[ex.id] ?? [];
           const done = exSets.filter(s => s.done).length;
           const complete = exSets.length > 0 && done === exSets.length;
+          const skipped = exSets.some(s => s.skipped);
           const isCurrent = ex.id === currentId;
+          // A skipped exercise folds away too; tap it to bring it back
+          if (skipped) {
+            return (
+              <Pressable
+                key={ex.id}
+                onPress={() => setSkipped(ex.id, false)}
+                accessibilityRole="button"
+                accessibilityLabel={`${ex.name}, skipped. Tap to undo.`}
+                style={[ui.card, ui.row, { justifyContent: 'space-between', paddingVertical: space.sm }]}
+              >
+                <View style={[ui.row, { flex: 1 }]}>
+                  <Ionicons name="play-skip-forward-circle-outline" size={22} color={colors.muted} />
+                  <Text style={[ui.muted, { flex: 1 }]} numberOfLines={1}>
+                    {ex.name}
+                  </Text>
+                </View>
+                <Text style={ui.small}>{done > 0 ? `${done}/${exSets.length} sets · ` : ''}Skipped · undo</Text>
+              </Pressable>
+            );
+          }
           // Finished exercises fold away to keep the one you're on in view; tap to open them again
           if (complete && !expanded.has(ex.id)) {
             return (
@@ -396,7 +449,17 @@ export default function SessionScreen({ route, navigation }: Props) {
                   </Text>
                 </Pressable>
                 {isCurrent ? (
-                  <Pill text="Now" color={colors.accent} />
+                  <View style={ui.row}>
+                    <Pressable
+                      onPress={() => setSkipped(ex.id, true)}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Skip ${ex.name} this workout`}
+                    >
+                      <Text style={ui.small}>Skip</Text>
+                    </Pressable>
+                    <Pill text="Now" color={colors.accent} />
+                  </View>
                 ) : complete ? (
                   <Pressable onPress={() => toggleExpanded(ex.id)} hitSlop={10} accessibilityRole="button">
                     <Text style={ui.small}>Hide</Text>

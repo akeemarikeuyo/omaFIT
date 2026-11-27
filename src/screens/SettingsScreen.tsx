@@ -7,8 +7,10 @@ import { Button, Section, Segmented } from '../components/ui';
 import { DEFAULT_LEVEL, LEVELS, levelInfo, levelOf, TrainingLevel } from '../data/level';
 import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS, WEEKDAYS_LONG } from '../data/reviewSchedule';
 import { currentProvider } from '../api/ai';
-import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
-import { DAY_A } from '../data/plan';
+import { fixRestAlerts, RestAlertStatus, restAlertStatus } from '../session/restAlert';
+import { breakTimes, DEFAULT_BREAK_HOURS, setPostureBreaks } from '../session/postureReminders';
+import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings, weekOf } from '../storage/store';
+import { DAY_A, STRENGTH_DAYS_PER_WEEK, WeekSetup, weekProblem, weekText } from '../data/plan';
 import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, toggleEquipmentKey, userEquipment } from '../data/library';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
@@ -40,6 +42,9 @@ export default function SettingsScreen() {
   // Which sections are open. All start closed so the page fits on one screen.
   const [open, setOpen] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [providerLabel, setProviderLabel] = useState('');
+  const [alertStatus, setAlertStatus] = useState<RestAlertStatus>('onTime');
+  const [breaks, setBreaks] = useState({ on: false, ...DEFAULT_BREAK_HOURS });
+  const [week, setWeek] = useState<WeekSetup | null>(null);
 
   const load = useCallback(async () => {
     const s = await getSettings();
@@ -48,6 +53,9 @@ export default function SettingsScreen() {
     setLevel(levelOf(s));
     setStartDate(s.startDate);
     setProviderLabel(currentProvider(s).label);
+    setAlertStatus(await restAlertStatus());
+    setBreaks(s.postureBreaks ?? { on: false, ...DEFAULT_BREAK_HOURS });
+    setWeek(weekOf(s));
     setBodyweight(s.bodyweightKg ? String(s.bodyweightKg) : '');
     setEquipment(userEquipment(s));
     setEquipmentNotes(s.equipmentNotes ?? '');
@@ -86,6 +94,23 @@ export default function SettingsScreen() {
     await chooseRest(v);
     setCustomRest('');
   };
+
+  const toggleStrengthDay = (d: number) =>
+    setWeek(w => {
+      if (!w) return w;
+      if (w.strength.includes(d)) return { ...w, strength: w.strength.filter(x => x !== d) };
+      if (w.strength.length >= STRENGTH_DAYS_PER_WEEK) return w;
+      return { ...w, strength: [...w.strength, d].sort(), rest: w.rest === d ? -1 : w.rest };
+    });
+  const saveWeek = async () => {
+    if (!week) return;
+    const problem = week.rest < 0 ? 'Pick a rest day.' : weekProblem(week);
+    if (problem) return Alert.alert(problem);
+    await saveSettings({ week });
+    Alert.alert('Saved', `Your week: ${weekText(week)}.`);
+  };
+  // Back-to-back strength days (incl. Sunday→Monday) leave less time to recover
+  const backToBack = !!week && week.strength.some(d => week.strength.includes((d + 1) % 7));
 
   const saveProgram = async () => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return Alert.alert('Use the date format YYYY-MM-DD');
@@ -219,6 +244,120 @@ export default function SettingsScreen() {
           open={!!open.training}
           onToggle={() => toggle('training')}
         >
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Rest alerts</Text>
+            <Text style={[ui.body, { color: alertStatus === 'onTime' ? colors.good : colors.warn }]}>
+              {alertStatus === 'onTime'
+                ? 'On: a sound when rest is over, on time.'
+                : alertStatus === 'late'
+                  ? 'On, but Android may deliver them late.'
+                  : 'Off: no sound when rest is over in another app.'}
+            </Text>
+            {alertStatus !== 'onTime' && (
+              <Button
+                title={alertStatus === 'late' ? 'Get them on time' : 'Turn on rest alerts'}
+                kind="secondary"
+                onPress={async () => {
+                  await fixRestAlerts();
+                  setAlertStatus(await restAlertStatus());
+                }}
+              />
+            )}
+          </View>
+          {week && (
+            <View style={{ gap: space.sm }}>
+              <Text style={ui.h3}>Your week</Text>
+              <Text style={ui.small}>
+                Pick {STRENGTH_DAYS_PER_WEEK} strength days and a rest day. The other days are walks, with the long walk on
+                the last one before your rest day.
+              </Text>
+              <Text style={ui.small}>Strength days</Text>
+              <View style={[ui.row, { flexWrap: 'wrap', gap: 6 }]}>
+                {[1, 2, 3, 4, 5, 6, 0].map(d => (
+                  <Button
+                    key={d}
+                    title={WEEKDAYS[d]}
+                    kind={week.strength.includes(d) ? 'primary' : 'secondary'}
+                    onPress={() => toggleStrengthDay(d)}
+                    style={{ paddingHorizontal: space.sm, paddingVertical: 8 }}
+                  />
+                ))}
+              </View>
+              <Text style={ui.small}>Rest day</Text>
+              <View style={[ui.row, { flexWrap: 'wrap', gap: 6 }]}>
+                {[1, 2, 3, 4, 5, 6, 0].map(d => (
+                  <Button
+                    key={d}
+                    title={WEEKDAYS[d]}
+                    kind={week.rest === d ? 'primary' : 'secondary'}
+                    disabled={week.strength.includes(d)}
+                    onPress={() => setWeek({ ...week, rest: d })}
+                    style={{ paddingHorizontal: space.sm, paddingVertical: 8 }}
+                  />
+                ))}
+              </View>
+              {week.rest >= 0 && !weekProblem(week) ? (
+                <Text style={ui.small}>{weekText(week)}</Text>
+              ) : (
+                <Text style={[ui.small, { color: colors.warn }]}>{week.rest < 0 ? 'Pick a rest day.' : weekProblem(week)}</Text>
+              )}
+              {backToBack && (
+                <Text style={[ui.small, { color: colors.warn }]}>
+                  Two strength days in a row leave less time to recover. A day between them is better if you can.
+                </Text>
+              )}
+              <Button title="Save week" kind="secondary" onPress={saveWeek} />
+            </View>
+          )}
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Posture breaks</Text>
+            <Text style={ui.small}>
+              Monday to Friday, every 90 min in your work hours: a quick posture check, never an exercise. Made on your
+              phone, nothing is sent anywhere.
+            </Text>
+            <Segmented
+              options={[
+                { key: 'off', label: 'Off' },
+                { key: 'on', label: 'On' },
+              ]}
+              value={breaks.on ? 'on' : 'off'}
+              onChange={async k => {
+                const on = await setPostureBreaks(k === 'on', breaks);
+                setBreaks(b => ({ ...b, on }));
+              }}
+            />
+            {breaks.on && (
+              <>
+                <Text style={ui.small}>From</Text>
+                <Segmented
+                  options={[7, 8, 9, 10].map(h => ({ key: h, label: `${h}:00` }))}
+                  value={breaks.startHour}
+                  onChange={async startHour => {
+                    const next = { ...breaks, startHour };
+                    setBreaks(next);
+                    await setPostureBreaks(true, next);
+                  }}
+                />
+                <Text style={ui.small}>Until</Text>
+                <Segmented
+                  options={[16, 17, 18, 19].map(h => ({ key: h, label: `${h}:00` }))}
+                  value={breaks.endHour}
+                  onChange={async endHour => {
+                    const next = { ...breaks, endHour };
+                    setBreaks(next);
+                    await setPostureBreaks(true, next);
+                  }}
+                />
+                <Text style={ui.small}>
+                  {breakTimes(breaks.startHour, breaks.endHour).length} a day, starting{' '}
+                  {breakTimes(breaks.startHour, breaks.endHour)
+                    .slice(0, 1)
+                    .map(t => `${t.hour}:${String(t.minute).padStart(2, '0')}`)}
+                  .
+                </Text>
+              </>
+            )}
+          </View>
           <View style={{ gap: space.sm }}>
             <Text style={ui.h3}>Rest between sets</Text>
             <Text style={ui.small}>

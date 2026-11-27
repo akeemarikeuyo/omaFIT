@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { SessionId } from '../data/plan';
+import { DEFAULT_WEEK, SessionId, WeekSetup } from '../data/plan';
 
 // ---------- API keys (phone's secure storage, never in the code) ----------
 
@@ -86,13 +86,26 @@ export interface Settings {
   onboarded?: boolean;
   /** The one-time "turn on notifications?" question has been shown (see src/session/restAlert.ts). */
   notificationsAsked?: boolean;
+  /** The one-time "get rest alerts on time?" (Android Alarms & reminders) question has been shown. */
+  onTimeAlertsAsked?: boolean;
   /** How experienced the user is; shapes how hard the AI makes the plan. Missing = beginner. See src/data/level.ts. */
   level?: 'beginner' | 'intermediate' | 'advanced';
   /** Day the weekly review unlocks, 0 = Sunday … 6 = Saturday. Missing = Sunday. See src/data/reviewSchedule.ts. */
   reviewDay?: number;
   /** When "Reset plan to original" was last used: unlocks one extra weekly review. */
   planResetAt?: string;
+  /** Full or Short sessions, the user's last choice on Today. Missing = full. See src/data/sessionLength.ts. */
+  sessionLength?: 'full' | 'short';
+  /** The break (its last active day) whose "pick up where you left off" offer was answered. See src/data/comeback.ts. */
+  comebackAnswered?: string;
+  /** Opt-in posture-break reminders, Mon-Fri every 90 min between these hours. See src/session/postureReminders.ts. */
+  postureBreaks?: { on: boolean; startHour: number; endHour: number };
+  /** "Not now" on the posture check-in card hides it until this date. See src/data/postureCheck.ts. */
+  postureCheckSnoozedUntil?: string;
+  /** The user's strength and rest days. Missing = Mon/Wed/Fri strength, Sunday rest. Read with weekOf(). */
+  week?: WeekSetup;
 }
+export const weekOf = (s: Settings): WeekSetup => s.week ?? DEFAULT_WEEK;
 const SETTINGS = 'settings_v1';
 
 export const MIN_REST_SECONDS = 60;
@@ -129,6 +142,8 @@ export interface SetLog {
   reps?: number;
   weightKg?: number;
   done: boolean;
+  /** The user skipped the rest of this exercise in this workout. Only on sets not done; the plan is unchanged. */
+  skipped?: boolean;
 }
 /** Where it hurts. See src/data/pain.ts for labels and which areas have a side. */
 export type PainArea = 'neck' | 'upper-back' | 'lower-back' | 'shoulder' | 'elbow' | 'wrist' | 'hip' | 'knee' | 'ankle' | 'other';
@@ -163,6 +178,8 @@ export interface WorkoutLog {
    * rated yet. Missing = finished (all logs before this field existed were saved at the end).
    */
   finished?: boolean;
+  /** The Short version: key exercises only, fewer sets. Missing = full. */
+  short?: boolean;
 }
 
 /** A workout saved as it goes and not finished yet. Its pain and effort are not ratings yet. */
@@ -377,8 +394,24 @@ export interface PostureAssessment {
   findings: string[];
 }
 const POSTURE = 'posture_assessment_v1';
+/** Earlier checks too, newest first, so the user can see what changed. The latest is also kept in POSTURE. */
+const POSTURE_HISTORY = 'posture_history_v1';
+const POSTURE_HISTORY_MAX = 10;
 export const getPostureAssessment = () => readJson<PostureAssessment | null>(POSTURE, null);
-export const savePostureAssessment = (a: PostureAssessment) => writeJson(POSTURE, a);
+
+/** Every posture check, newest first. Before the history existed only the latest was kept. */
+export async function getPostureHistory(): Promise<PostureAssessment[]> {
+  const history = await readJson<PostureAssessment[]>(POSTURE_HISTORY, []);
+  if (history.length) return history;
+  const latest = await getPostureAssessment();
+  return latest ? [latest] : [];
+}
+
+export async function savePostureAssessment(a: PostureAssessment) {
+  const history = await getPostureHistory();
+  await writeJson(POSTURE_HISTORY, [a, ...history].slice(0, POSTURE_HISTORY_MAX));
+  await writeJson(POSTURE, a);
+}
 
 // ---------- weekly reviews ----------
 

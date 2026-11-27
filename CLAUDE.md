@@ -23,7 +23,10 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 
 ## Commands
 - `npx expo start` — run in Expo Go (`--tunnel` if the phone can't connect, `-c` to clear the cache)
-- `npm run check` — lint + type-check. Run after every change and fix all errors; CI runs the same on every PR.
+- `npm run check` — lint + type-check + tests. Run after every change and fix all errors; CI runs the same on every PR.
+- `npm test` (Jest, `jest-expo` preset) — unit tests in `src/__tests__/*.test.ts`. Storage is an in-memory AsyncStorage
+  mock (`jest.setup.js`), so tests start from default settings and the baseline plan. Import `describe`/`it`/`expect`
+  from `@jest/globals`.
 - `npm run lint` (`expo lint`) — code quality and security rules from `eslint.config.js`
 - `npm run typecheck` (`npx tsc --noEmit`)
 - `npx expo install <pkg>` — add packages with SDK-compatible versions. Don't use plain `npm install <pkg>` for
@@ -40,19 +43,23 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 | Path | What |
 | --- | --- |
 | `App.tsx` | Navigation: tabs (Today, Progress, Review, Coach, Settings) + stack (Session, Walk, LogDetail, Exercise, PlanBuilder, Setup); launch screen; first-run Setup for new installs (skipped when logs exist) |
-| `src/data/plan.ts` | Baseline plan: posture routine, Day A, Day B, walking plan, weekday schedule, red-flag text. Exercises can have `demoId` (photos) and `videoUrl` (YouTube Short). |
+| `src/data/plan.ts` | Baseline plan: posture routine, Day A, Day B, walking plan, the week (`WeekSetup`: 3 strength days + 1 rest day, `DEFAULT_WEEK`, `dayKind`, `weekText`, `weekProblem`), red-flag text. Exercises can have `demoId` (photos) and `videoUrl` (YouTube Short). |
 | `src/data/effective.ts` | Baseline plan + approved changes (overrides incl. `removed`, swaps with `demoId`, AI-added library exercises); `effectivePlan()`, `exerciseLabel()`, `planAsText()` |
 | `src/data/library.ts` | What the AI may pick: `rejectReason()` (equipment fit with substitutes, banned lifts, the user's training level, category, posture-routine limits; skipping rope as a strength-day warm-up/finisher only), Bodyweight and Skipping rope as ordinary equipment items, `candidates()`, `upperBodyBalance()`, added-exercise ids `lib-<session>-<libraryId>` |
 | `src/data/level.ts` | Training level (`Settings.level`, default beginner): what each level means, which library difficulty `rejectReason` allows (beginner → beginner-level only; expert always blocked), and the guide the AI gets for sets, reps and session length |
-| `src/data/progress.ts` | Streak, weekly and daily stats for the Progress tab and the Today streak card (read-only, derived from logs) |
+| `src/data/progress.ts` | Streak (days in a row on plan: a planned rest day extends a streak but can't start one), weekly and daily stats, `exerciseHistory()` (best set per workout, for `ExerciseProgress.tsx` on the Exercise screen and "Strength progress" on Progress) for the Progress tab and the Today streak card (read-only, derived from logs) |
+| `src/data/sessionLength.ts` | Full or Short sessions: `shortVersion()` keeps exercises with `shortSets` (key exercises in `plan.ts`, kept through swaps; AI-added ones aren't key) at fewer sets; `sessionMinutes()`/`estimateSeconds()` for times on Today and "about N min left" in Session. The choice is `Settings.sessionLength`; short logs have `short: true`. Short must keep pull sets ≥ 2x push. |
+| `src/data/comeback.ts` | Back after a break (14+ days, nothing logged): `comebackOffer()` suggests restarting at the program week the user left off (one earlier after 28+ days) by moving `Settings.startDate`; answered once per break (`comebackAnswered`) |
+| `src/data/week.ts` | `upcomingDays()`: today and the next six days from the plan (weekday pattern, A/B rotation, walk target per program week), for "Your week" on Today |
 | `src/data/exerciseIndex.json` | Bundled free-exercise-db library: 873 exercises (id, name, equipment, category, force, level, muscles, image paths). Regenerate with `scripts/build-exercise-index.js`. |
 | `src/api/ai/` | Provider layer. `index.ts`: `askAI()` (the only way the app calls an AI), `PROVIDERS` registry (label, `defaultModel`, key page, cost/privacy note), `listModels()`, `testConnection()`. `types.ts`: neutral `AIRequest`/`AIResult`, `AIError`. One adapter per provider: `anthropic.ts` (Messages API), `openai.ts` (Responses API, `store: false`), `gemini.ts` (stateless `generateContent`), `deepseek.ts` (OpenAI-compatible Chat Completions) |
 | `src/api/coach.ts` | Provider-neutral coaching: `athleteProfile()` from Settings, `COACHING_RULES`, cacheable `librarySystemBlock()`, weekly review + `validateChanges`, coach chat (`reply_to_user` tool: a reply plus optional plan changes, validated by `validateChanges` and applied only when the user taps Apply on the card) |
 | `src/api/planBuilder.ts` | "Build my plan": posture photos + context → `submit_plan_proposal`, `validateProposal` safety checks, `applyProposal` |
 | `src/api/demos.ts` | Demo lookup/search over the bundled index. Photos load from GitHub raw. |
-| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (stored one month per key, `logs_v2_YYYY-MM`, migrated once from `logs_v1`, so no value nears Android's ~2 MB read limit; log writes run one at a time. A workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. Unfinished logs have no pain/effort rating. Pain is asked after every session and walk (a few older test-build logs have `painRated: false`). Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
-| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard), `LogRow.tsx` (one logged entry in a list), `Section` in `ui.tsx` (Settings' open/close sections) |
+| `src/storage/store.ts` | All persistence: AI keys (`KeyName` = provider id), settings (profile, equipment, `aiProvider`, `aiModels`, rest time), logs (stored one month per key, `logs_v2_YYYY-MM`, migrated once from `logs_v1`, so no value nears Android's ~2 MB read limit; log writes run one at a time. A workout saves as sets are ticked with `finished: false`, so it can be continued the same day; Finish rates it. "Skip" on the current exercise marks its sets not yet done `skipped` for that workout only (the plan is unchanged; tap the folded row to undo). Unfinished logs have no pain/effort rating. Pain is asked after every session and walk (a few older test-build logs have `painRated: false`). Use `isPainRated` before reading pain), overrides, reviews, chat, demo picks |
+| `src/components/` | `ui.tsx` (Button, ScalePicker, Pill), `ExerciseDemo.tsx`, `DailyChart.tsx`, `Brand.tsx` (logo mark, wordmark, tagline), `LaunchScreen.tsx`, `AISettings.tsx` (provider, key, model, test), `KeyboardAware.tsx` (keeps typed text above the keyboard), `LogRow.tsx` (one logged entry in a list), `WeekPlan.tsx` ("Your week" on Today: tap a day for its exercises), `Section` in `ui.tsx` (Settings' open/close sections) |
 | `src/screens/` | Setup (first-run: welcome, level, equipment, AI key; sets `Settings.onboarded`), Today, Progress (incl. History), Session, Walk (log a walk/run with pain), LogDetail (read-only view of a logged entry: finished days are not edited), Exercise, Review, Coach, Settings, PlanBuilder |
+| `src/session/postureReminders.ts` | Opt-in posture-break reminders (`Settings.postureBreaks`): `syncPostureBreaks()` at launch and on change, `breakTimes()` |
 | `src/session/restAlert.ts` | The local "rest over" notification (the app's only notification use). Session keeps the screen awake with `expo-keep-awake` and times rest from its end time, so it stays right in the background. |
 | `src/theme/index.ts` | Colors (dark, gold accent `#F5B82E`), spacing, shared styles |
 | `scripts/make-icons.js` | Dependency-free PNG icon generator: builds every app icon, the splash image and `assets/logo-mark.png` (used by `Brand.tsx`) from the master `assets/logo.png`. To change the logo, replace the master and run `npm run icons`. |
@@ -69,7 +76,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - **Nothing changes the plan silently.** AI suggestions apply only when the user taps Apply (`mergeOverrides`,
   `addAdditions`). `plan.ts` is the baseline, and "Reset plan" (`resetPlan`) must keep working.
 - **Posture photos are never stored by the app.** They're resized on the phone, sent once to the user's AI provider
-  and dropped. Only the text findings are saved (`posture_assessment_v1`). The AI describes, never diagnoses.
+  and dropped. Only the text findings are saved (`posture_assessment_v1` = latest, `posture_history_v1` = last 10, newest first; `getPostureHistory()`). Every 4 weeks after a check, Today suggests a new one (`src/data/postureCheck.ts`, "Not now" snoozes a week); the plan screen shows the previous findings beside the new ones. The AI describes, never diagnoses.
 - **Conservative coaching rules:** no barbell back squats or heavy barbell deadlifts, pull volume ≥ 2x push, pain
   ≥ 5 in any area means reduce load on what loads that area, and red flags mean see a doctor or physio. Pain is logged
   per area (`PainEntry`, `src/data/pain.ts`): read it with `painsOf()`, never `backPain` directly (it's the lower back
@@ -126,7 +133,7 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 - **Device access:** camera and photos only through `expo-image-picker` / `expo-image-manipulator` in
   `PlanBuilderScreen`. `Linking.openURL` only in `ExerciseScreen` (YouTube demos) and `AISettings` (fixed API-key
   page URLs). Notifications only through `expo-notifications` in `src/session/restAlert.ts`, for the local "rest over"
-  alert (no push notifications), asked once on first launch (`offerRestAlertsOnce`). No location, contacts, clipboard, sensors, device IDs or other notifications without
+  alert (no push notifications), asked once on first launch (`offerRestAlertsOnce`), then Android's "Alarms & reminders" (`SCHEDULE_EXACT_ALARM`, so the alert isn't delayed) is offered once and in Settings → Training. In the app the alert is a sound only (`soundRestAlertNow` at the exact moment); in another app it's a notification. The only other notification is opt-in posture breaks (`src/session/postureReminders.ts`): local weekly notifications Mon–Fri every 90 min in the user's work hours (Settings → Training), posture checks only, never exercises, silent while omaFIT is open. No location, contacts, clipboard, sensors, device IDs or other notifications without
   the maintainer's approval. New permissions in `app.json` need it too.
 - **No tracking:** no analytics, crash reporters, ads or third-party SDKs that collect data.
 - **Dependencies:** add only with `npx expo install`, only when really needed, from well-known maintainers. Explain
@@ -153,6 +160,11 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 - Keep UI text short and plain. Units: kg, minutes. The brand is written **omaFIT**.
 
 ## Testing
-No automated tests yet. After a change, run `npm run check`, then check it on a phone in Expo Go.
-Weekday logic: Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Use "Start a new
+Unit tests cover the safety checks (`validateChanges`, `validateProposal`, `rejectReason`), the streak, the week plan,
+Short sessions and the comeback offer. A safety test failing means a rule got looser: fix the code, don't change the
+test, unless the maintainer agreed the rule change. Add tests for new pure logic. After a change, run `npm run check`,
+then check it on a phone in Expo Go.
+Weekday logic (default week; users can change it in Settings → Training → Your week, `Settings.week`, read with
+`weekOf()`): Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Always pass the user's week
+to `dayKind`, `walkToday`, `upcomingDays` and `summary`. Use "Start a new
 session" on Today to test strength screens on other days.

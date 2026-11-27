@@ -17,6 +17,7 @@ import {
   ProposedRemove,
   ProposedSwap,
   removeAdditions,
+  getPostureAssessment,
   savePostureAssessment,
   saveProposal,
 } from '../storage/store';
@@ -247,6 +248,8 @@ export async function validateProposal(raw: RawProposal) {
 /** Sends photos (optional) + context to the AI and returns a checked, saved proposal. */
 export async function buildPlan(photos: PosturePhoto[]): Promise<PlanProposal> {
   const settings = await getSettings();
+  // The check before this one (contextBlock lists its findings), so the AI can say what changed
+  const previousCheck = await getPostureAssessment();
   const imageParts = photos.flatMap((p): AIPart[] => [
     { type: 'text', text: `Photo: ${p.view} view` },
     { type: 'image', mediaType: 'image/jpeg', base64: p.base64 },
@@ -256,12 +259,18 @@ export async function buildPlan(photos: PosturePhoto[]): Promise<PlanProposal> {
     photos.length
       ? 'The photos above are relaxed standing posture photos. Describe only what is clearly visible, as observations, never as a diagnosis.'
       : 'No posture photos were provided. Base the plan on the profile and logs; leave posture_findings empty.',
+    photos.length && previousCheck
+      ? 'An earlier posture check is listed above. In photo_note, say briefly what looks different from it (better, ' +
+        'the same or worse), as observations only. Photos differ in light and angle, so be cautious.'
+      : null,
     'Build the best plan for this person: tailor the daily posture routine to their posture findings and sitting habits, ' +
       'and the strength days to their goals and equipment. Swap or remove plan exercises that need equipment they do not have. ' +
       'Keep the plan short enough to finish (posture routine about 10-15 minutes). Prefer few, high-value changes. ' +
       'Every new or swapped exercise must be an exact id from the exercise library list for that session type. ' +
       'Then call submit_plan_proposal once with your answer.',
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   const { toolInput } = await askAI({
     maxTokens: 16000,

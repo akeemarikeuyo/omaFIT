@@ -13,7 +13,7 @@ import { exerciseLabel } from '../data/effective';
 import { EQUIPMENT_OPTIONS, userEquipment } from '../data/library';
 import { SessionId } from '../data/plan';
 import { RootStackParamList } from '../navigation';
-import { getProposals, getSettings, PlanProposal, Settings } from '../storage/store';
+import { getPostureHistory, getProposals, getSettings, PlanProposal, PostureAssessment, Settings } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlanBuilder'>;
@@ -45,13 +45,15 @@ async function getPhoto(fromCamera: boolean): Promise<{ uri: string; base64: str
   return out.base64 ? { uri: out.uri, base64: out.base64 } : null;
 }
 
-export default function PlanBuilderScreen({ navigation }: Props) {
+export default function PlanBuilderScreen({ navigation, route }: Props) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [photos, setPhotos] = useState<Partial<Record<PhotoView, { uri: string; base64: string }>>>({});
   const [proposal, setProposal] = useState<PlanProposal | null>(null);
   const [loading, setLoading] = useState(false);
   // With a plan already built, the screen shows only the AI's feedback until the user chooses to build again
-  const [buildingAgain, setBuildingAgain] = useState(false);
+  // From the posture check-in card: start ready for new photos
+  const [buildingAgain, setBuildingAgain] = useState(!!route.params?.checkIn);
+  const [postureChecks, setPostureChecks] = useState<PostureAssessment[]>([]);
   const viewing = !!proposal && !buildingAgain;
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function PlanBuilderScreen({ navigation }: Props) {
     useCallback(() => {
       getSettings().then(setSettings);
       getProposals().then(p => setProposal(p[0] ?? null));
+      getPostureHistory().then(setPostureChecks);
     }, []),
   );
 
@@ -233,6 +236,14 @@ export default function PlanBuilderScreen({ navigation }: Props) {
               <Text style={ui.h3}>What the AI noticed</Text>
               {proposal.findings.map((f, i) => (
                 <Text key={i} style={ui.body}>• {f}</Text>
+              ))}
+            </View>
+          )}
+          {proposal.findings.length > 0 && postureChecks.length > 1 && (
+            <View style={{ gap: 2 }}>
+              <Text style={ui.h3}>Your check before, {new Date(postureChecks[1].date).toDateString()}</Text>
+              {postureChecks[1].findings.map((f, i) => (
+                <Text key={i} style={ui.muted}>• {f}</Text>
               ))}
             </View>
           )}

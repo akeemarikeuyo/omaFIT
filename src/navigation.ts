@@ -3,12 +3,13 @@ import { SessionId } from './data/plan';
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
-  Session: { sessionId: SessionId };
+  Session: { sessionId: SessionId; short?: boolean };
   Exercise: { sessionId: SessionId; exerciseId: string };
   Walk: undefined;
   LogDetail: { logId: string };
   Setup: undefined;
-  PlanBuilder: undefined;
+  /** checkIn: opened from the posture check-in card, so it starts ready for new photos */
+  PlanBuilder: { checkIn?: boolean } | undefined;
 };
 
 export type TabParamList = {

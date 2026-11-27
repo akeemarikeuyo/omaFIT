@@ -1,12 +1,16 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChartMode, DailyChart } from '../components/DailyChart';
 import { LogRow } from '../components/LogRow';
 import { Button, painColor, Segmented } from '../components/ui';
-import { dailyStats, encouragement, painPlaces, summary } from '../data/progress';
-import { AnyLog, getLogs } from '../storage/store';
+import { EffectiveExercise, effectivePlan } from '../data/effective';
+import { SessionId, WeekSetup } from '../data/plan';
+import { dailyStats, encouragement, exerciseHistory, painPlaces, summary } from '../data/progress';
+import { RootStackParamList } from '../navigation';
+import { AnyLog, getLogs, getSettings, weekOf } from '../storage/store';
 import { colors, space, ui } from '../theme';
 
 const MODES: { id: ChartMode; label: string }[] = [
@@ -23,7 +27,10 @@ const RANGES = [
 ];
 
 export default function ProgressScreen() {
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [logs, setLogs] = useState<AnyLog[]>([]);
+  const [plan, setPlan] = useState<Record<SessionId, EffectiveExercise[]> | null>(null);
+  const [userWeek, setUserWeek] = useState<WeekSetup | undefined>(undefined);
   const [mode, setMode] = useState<ChartMode>('sets');
   const [range, setRange] = useState(14);
   const [historyCount, setHistoryCount] = useState(HISTORY_PAGE);
@@ -34,10 +41,12 @@ export default function ProgressScreen() {
   useFocusEffect(
     useCallback(() => {
       getLogs().then(setLogs);
+      effectivePlan().then(setPlan);
+      getSettings().then(st => setUserWeek(weekOf(st)));
     }, []),
   );
 
-  const s = summary(logs);
+  const s = summary(logs, new Date(), userWeek);
   const days = dailyStats(logs, range);
   const activeDays = days.filter(d => d.active).length;
 
@@ -55,6 +64,14 @@ export default function ProgressScreen() {
       : 'Nothing logged yet.';
   }
   const places = mode === 'pain' ? painPlaces(logs, days[0].date) : [];
+
+  // Weighted plan exercises with logged weights: first best set → latest best set
+  const lifts = (['A', 'B'] as const).flatMap(sessionId =>
+    (plan?.[sessionId] ?? [])
+      .filter(ex => ex.loaded)
+      .map(ex => ({ sessionId, ex, points: exerciseHistory(logs, ex.id).filter(p => p.weightKg != null) }))
+      .filter(l => l.points.length > 0),
+  );
 
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
@@ -102,6 +119,32 @@ export default function ProgressScreen() {
           <Tile value={s.totalWorkouts} label="workouts logged" />
           <Tile value={s.totalWalkMinutes} label="walk minutes" />
         </View>
+
+        {lifts.length > 0 && (
+          <View style={[ui.card, { gap: space.sm }]}>
+            <Text style={ui.h3}>Strength progress</Text>
+            <Text style={ui.small}>Best weight, first logged → latest. Tap one for the chart.</Text>
+            {lifts.map(({ sessionId, ex, points }) => {
+              const first = points[0].weightKg ?? 0;
+              const last = points[points.length - 1].weightKg ?? 0;
+              return (
+                <Pressable
+                  key={ex.id}
+                  onPress={() => nav.navigate('Exercise', { sessionId, exerciseId: ex.id })}
+                  accessibilityRole="button"
+                  style={[ui.row, { justifyContent: 'space-between' }]}
+                >
+                  <Text style={[ui.body, { flex: 1 }]} numberOfLines={1}>
+                    {ex.name}
+                  </Text>
+                  <Text style={[ui.small, last > first && { color: colors.good, fontWeight: '700' }]}>
+                    {first === last ? `${last} kg` : `${first} → ${last} kg`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         <Text style={[ui.h2, { marginTop: space.md }]}>History</Text>
         <Text style={ui.small}>Tap an entry to see what you did. Long-press to delete it.</Text>

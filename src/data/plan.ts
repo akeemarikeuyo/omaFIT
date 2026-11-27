@@ -8,6 +8,11 @@ export interface Exercise {
   id: string;
   name: string;
   sets: number;
+  /**
+   * Key exercise: kept in the Short version of the session, with this many sets (never more than `sets`).
+   * Missing = left out of Short. Swaps keep it, so a swapped-in exercise fills the same slot.
+   */
+  shortSets?: number;
   /** Target per set, e.g. "10", "8-12", "30-45 s" */
   reps: string;
   perSide?: boolean;
@@ -43,26 +48,26 @@ export const POSTURE: Session = {
       demoId: 'Cat_Stretch',
     },
     {
-      id: 'chin-tuck', name: 'Chin tucks (5 s hold)', sets: 1, reps: '10', loaded: false, equipment: 'None',
+      id: 'chin-tuck', name: 'Chin tucks (5 s hold)', sets: 1, shortSets: 1, reps: '10', loaded: false, equipment: 'None',
       cues: ['Glide your chin straight back, like making a double chin', 'Eyes stay level, do not tilt up or down'],
       // No close photo demo in the free dataset. Video: Dr. Dawn Thomas Physical Therapy.
       videoUrl: 'https://www.youtube.com/shorts/oO9Zernkbxg',
     },
     {
-      id: 'thoracic-ext', name: 'Thoracic extension over bench edge', sets: 1, reps: '8', loaded: false,
+      id: 'thoracic-ext', name: 'Thoracic extension over bench edge', sets: 1, shortSets: 1, reps: '8', loaded: false,
       equipment: 'Bench + rolled mat as pad',
       cues: ['Hands behind head', 'Arch the upper back only', 'Keep ribs down, lower back still'],
       // No close photo demo in the free dataset. Video: React Physical Therapy.
       videoUrl: 'https://www.youtube.com/shorts/PCDYP9gpHWk',
     },
     {
-      id: 'pec-stretch', name: 'Doorway pec stretch', sets: 1, reps: '30-45 s', perSide: true, loaded: false,
+      id: 'pec-stretch', name: 'Doorway pec stretch', sets: 1, shortSets: 1, reps: '30-45 s', perSide: true, loaded: false,
       equipment: 'Doorframe',
       cues: ['Elbow at shoulder height on the frame', 'Step through gently until you feel the chest stretch'],
       demoId: 'Chest_And_Front_Of_Shoulder_Stretch',
     },
     {
-      id: 'pull-apart', name: 'Band pull-aparts', sets: 2, reps: '15', loaded: false, equipment: 'Red band',
+      id: 'pull-apart', name: 'Band pull-aparts', sets: 2, shortSets: 2, reps: '15', loaded: false, equipment: 'Red band',
       cues: ['Arms straight at shoulder height', 'Squeeze shoulder blades down and back', 'No shrugging'],
       demoId: 'Band_Pull_Apart',
     },
@@ -98,19 +103,19 @@ export const DAY_A: Session = {
   restSeconds: 75,
   exercises: [
     {
-      id: 'goblet-squat', name: 'Goblet squat', sets: 3, reps: '10', loaded: true,
+      id: 'goblet-squat', name: 'Goblet squat', sets: 3, shortSets: 2, reps: '10', loaded: true,
       equipment: 'One dumbbell at chest',
       cues: ['Chest up', 'Sit down between your hips', 'Knees track over toes'],
       demoId: 'Goblet_Squat',
     },
     {
-      id: 'one-arm-row', name: 'One-arm dumbbell row', sets: 4, reps: '10', perSide: true, loaded: true,
+      id: 'one-arm-row', name: 'One-arm dumbbell row', sets: 4, shortSets: 3, reps: '10', perSide: true, loaded: true,
       equipment: 'Dumbbell + bench',
       cues: ['Knee and hand on the bench, flat back', 'Pull your elbow toward your hip', 'Pause at the top'],
       demoId: 'One-Arm_Dumbbell_Row',
     },
     {
-      id: 'pushup-bars', name: 'Push-ups on push-up bars', sets: 3, reps: '8-12', loaded: false,
+      id: 'pushup-bars', name: 'Push-ups on push-up bars', sets: 3, shortSets: 2, reps: '8-12', loaded: false,
       equipment: 'Push-up bars',
       cues: ['Body in one straight line', 'Elbows about 45 degrees from your body', 'Chest to bar height'],
       demoId: 'Pushups',
@@ -122,7 +127,7 @@ export const DAY_A: Session = {
       demoId: 'Stiff-Legged_Dumbbell_Deadlift',
     },
     {
-      id: 'face-pull', name: 'Band face pull', sets: 3, reps: '15', loaded: false,
+      id: 'face-pull', name: 'Band face pull', sets: 3, shortSets: 2, reps: '15', loaded: false,
       equipment: 'Black band on a rack upright at face height',
       cues: ['Pull toward your eyes, elbows high', 'Finish with thumbs pointing back', 'Squeeze the rear shoulders'],
       demoId: 'Face_Pull',
@@ -148,13 +153,13 @@ export const DAY_B: Session = {
   restSeconds: 75,
   exercises: [
     {
-      id: 'split-squat', name: 'Dumbbell split squat', sets: 3, reps: '8', perSide: true, loaded: true,
+      id: 'split-squat', name: 'Dumbbell split squat', sets: 3, shortSets: 2, reps: '8', perSide: true, loaded: true,
       equipment: 'Two dumbbells',
       cues: ['Torso tall', 'Back knee drops straight down', 'Front heel stays down'],
       demoId: 'Split_Squat_with_Dumbbells',
     },
     {
-      id: 'chest-supported-row', name: 'Chest-supported dumbbell row', sets: 4, reps: '10', loaded: true,
+      id: 'chest-supported-row', name: 'Chest-supported dumbbell row', sets: 4, shortSets: 3, reps: '10', loaded: true,
       equipment: 'Incline bench + dumbbells',
       cues: ['Chest stays on the pad', 'Squeeze shoulder blades together at the top'],
       demoId: 'Dumbbell_Incline_Row',
@@ -166,7 +171,7 @@ export const DAY_B: Session = {
       demoId: 'Barbell_Bench_Press_-_Medium_Grip',
     },
     {
-      id: 'hip-thrust', name: 'Hip thrust', sets: 3, reps: '12', loaded: true,
+      id: 'hip-thrust', name: 'Hip thrust', sets: 3, shortSets: 2, reps: '12', loaded: true,
       equipment: 'Upper back on bench, weight on hips',
       cues: ['Chin tucked, ribs down', 'Squeeze glutes hard at the top', 'Shins vertical at the top'],
       demoId: 'Barbell_Hip_Thrust',
@@ -178,7 +183,7 @@ export const DAY_B: Session = {
       demoId: 'Dumbbell_One-Arm_Shoulder_Press',
     },
     {
-      id: 'rear-delt', name: 'Pull-apart + rear-delt fly superset', sets: 3, reps: '15 each', loaded: true,
+      id: 'rear-delt', name: 'Pull-apart + rear-delt fly superset', sets: 3, shortSets: 2, reps: '15 each', loaded: true,
       equipment: 'Red band + light dumbbells',
       cues: ['Lead with the elbows', 'No shrugging', 'Light weight, slow tempo'],
       demoId: 'Reverse_Flyes',
@@ -199,6 +204,7 @@ export const DAY_B: Session = {
 export const SESSIONS: Record<SessionId, Session> = { posture: POSTURE, A: DAY_A, B: DAY_B };
 
 export const WALK_PLAN = [
+  // `weekday`: the walk days; `saturday`: the long walk (named for the default week, on whichever day the user set)
   { weeks: '1-2', weekday: 'Brisk walk 30 min', saturday: 'Walk 45 min' },
   { weeks: '3-4', weekday: 'Brisk walk 40 min', saturday: 'Walk 60 min' },
   { weeks: '5-6', weekday: 'Run-walk: 1 min jog / 2 min walk x 8', saturday: 'Walk 60 min' },
@@ -208,13 +214,46 @@ export const WALK_PLAN = [
 
 export type DayKind = 'strength' | 'walk' | 'longwalk' | 'rest';
 
-/** Mon/Wed/Fri strength, Tue/Thu walk, Sat long walk, Sun rest. (JS: 0 = Sunday) */
-export function dayKind(date: Date): DayKind {
+/** The user's week: 3 strength days and 1 rest day (JS days, 0 = Sunday). The other days are walks. */
+export interface WeekSetup {
+  strength: number[];
+  rest: number;
+}
+/** Mon/Wed/Fri strength, Tue/Thu walk, Sat long walk, Sun rest */
+export const DEFAULT_WEEK: WeekSetup = { strength: [1, 3, 5], rest: 0 };
+export const STRENGTH_DAYS_PER_WEEK = 3;
+
+/** Why a week setup can't be used, or null if it can. */
+export function weekProblem(w: WeekSetup): string | null {
+  if (new Set(w.strength).size !== STRENGTH_DAYS_PER_WEEK) return `Pick ${STRENGTH_DAYS_PER_WEEK} strength days.`;
+  if (w.strength.includes(w.rest)) return "The rest day can't also be a strength day.";
+  return null;
+}
+
+/** The long walk: the last walk day before the rest day. */
+function longWalkDay(w: WeekSetup): number {
+  for (let i = 1; i < 7; i++) {
+    const d = (w.rest - i + 7) % 7;
+    if (!w.strength.includes(d)) return d;
+  }
+  return -1;
+}
+
+/** What the plan has on this date for this week setup. */
+export function dayKind(date: Date, week: WeekSetup = DEFAULT_WEEK): DayKind {
+  const w = weekProblem(week) ? DEFAULT_WEEK : week;
   const d = date.getDay();
-  if (d === 1 || d === 3 || d === 5) return 'strength';
-  if (d === 2 || d === 4) return 'walk';
-  if (d === 6) return 'longwalk';
-  return 'rest';
+  if (d === w.rest) return 'rest';
+  if (w.strength.includes(d)) return 'strength';
+  return d === longWalkDay(w) ? 'longwalk' : 'walk';
+}
+
+const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** e.g. "strength Mon/Wed/Fri, walks Tue/Thu, long walk Sat, rest Sun" */
+export function weekText(week: WeekSetup = DEFAULT_WEEK): string {
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const of = (k: DayKind) => order.filter(d => dayKind(new Date(2026, 10, 22 + d), week) === k).map(d => SHORT_DAYS[d]).join('/');
+  return `strength ${of('strength')}, walks ${of('walk')}, long walk ${of('longwalk')}, rest ${of('rest')}`;
 }
 
 export function walkForWeek(programWeek: number) {
@@ -238,9 +277,9 @@ export interface WalkToday {
   minutes: number;
 }
 
-/** Today's walk or run from the plan: an easy walk after strength days, the week's walk/run, or Saturday's long walk. */
-export function walkToday(date: Date, programWeek: number): WalkToday {
-  const kind = dayKind(date);
+/** Today's walk or run from the plan: an easy walk after strength days, the week's walk/run, or the long walk. */
+export function walkToday(date: Date, programWeek: number, week: WeekSetup = DEFAULT_WEEK): WalkToday {
+  const kind = dayKind(date, week);
   const plan = walkForWeek(programWeek);
   const target =
     kind === 'strength' ? '20 min easy walk' : kind === 'longwalk' ? plan.saturday : kind === 'walk' ? plan.weekday : 'Easy walk, any length';

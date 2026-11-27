@@ -3,7 +3,7 @@ import { BODYWEIGHT, candidates, EQUIPMENT_OPTIONS, SKIPPING_ROPE, equipmentLabe
 import { levelInfo, levelOf } from '../data/level';
 import { PAIN_LOADS_FOR_AI, painForAI, painsOf } from '../data/pain';
 import { reviewStatus } from '../data/reviewSchedule';
-import { SessionId } from '../data/plan';
+import { SessionId, weekText } from '../data/plan';
 import {
   AnyLog,
   ChatMessage,
@@ -17,6 +17,7 @@ import {
   programWeek,
   ReviewChange,
   Settings,
+  weekOf,
 } from '../storage/store';
 import { AIError, askAI } from './ai';
 import { findDemo } from './demos';
@@ -29,9 +30,10 @@ const DEFAULT_KIT =
   'adjustable barbell + flat/incline bench with low rack uprights, leg extension/curl bench attachment, ' +
   'adjustable plastic-plate dumbbells, push-up bars, ab wheel, two long loop bands (red lighter, black heavier), yoga mat, ' +
   'posture-corrector strap. No pull-up bar, no cables, no machines.';
-const SCHEDULE =
-  'Schedule: strength Mon/Wed/Fri alternating Day A and Day B, walks Tue/Thu (run-walk from program week 5), ' +
-  'long walk Sat, rest Sun, a 10-minute posture routine daily.';
+/** The user's week (set in Settings), e.g. strength Mon/Wed/Fri. */
+const schedule = (s: Settings) =>
+  `Schedule (set by the user): ${weekText(weekOf(s))}. Strength days alternate Day A and Day B; walks become ` +
+  'run-walk from program week 5; a 10-minute posture routine daily.';
 
 function equipmentText(s: Settings): string {
   const notes = s.equipmentNotes?.trim() ? ` Notes from the user: ${s.equipmentNotes.trim()}.` : '';
@@ -63,7 +65,7 @@ function athleteProfile(s: Settings): string {
     s.bodyweightKg ? `Bodyweight: ${s.bodyweightKg} kg.` : null,
     `Training level (set by the user): ${levelInfo(levelOf(s)).aiGuide} Fit sets, reps, session length and progression to this level.`,
     equipmentText(s),
-    SCHEDULE,
+    schedule(s),
   ]
     .filter(Boolean)
     .join('\n');
@@ -115,6 +117,12 @@ export function logsAsText(logs: AnyLog[]): string {
       }
       const byEx = new Map<string, string[]>();
       for (const s of l.sets) {
+        // The user chose to skip the rest of this exercise in this workout
+        if (s.skipped) {
+          const cur = byEx.get(s.exerciseId) ?? [];
+          if (!cur.includes('skipped the rest')) byEx.set(s.exerciseId, [...cur, cur.length ? 'skipped the rest' : 'skipped']);
+          continue;
+        }
         if (!s.done) continue;
         const parts = [s.weightKg != null ? `${s.weightKg}kg` : null, s.reps != null ? `${s.reps}` : null]
           .filter(Boolean)
@@ -122,7 +130,9 @@ export function logsAsText(logs: AnyLog[]): string {
         byEx.set(s.exerciseId, [...(byEx.get(s.exerciseId) ?? []), parts || 'done']);
       }
       const exLines = [...byEx.entries()].map(([id, sets]) => `   [${id}] ${exerciseLabel(id)}: ${sets.join(', ')}`);
-      const title = l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`;
+      const title =
+        (l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`) +
+        (l.short ? ' (short version by choice: key exercises, fewer sets)' : '');
       return (
         `${day} ${title} | ` +
         (l.finished === false
@@ -227,7 +237,7 @@ function heaviestRecent(logs: AnyLog[], exerciseId: string): number | null {
 }
 
 /** App-side safety checks on the AI's suggestions, so a bad suggestion can't slip through. */
-async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
+export async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
   const level = levelOf(await getSettings());
   const plan = await effectivePlan();
   const sessionOf = new Map<string, SessionId>();

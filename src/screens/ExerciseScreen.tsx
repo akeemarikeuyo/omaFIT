@@ -2,8 +2,11 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, Text, View } from 'react-native';
 import { ExerciseDemo } from '../components/ExerciseDemo';
+import { ExerciseProgress } from '../components/ExerciseProgress';
 import { Button, Pill } from '../components/ui';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
+import { ExercisePoint, exerciseHistory } from '../data/progress';
+import { getLogs } from '../storage/store';
 import { RootStackParamList } from '../navigation';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { colors, space, ui } from '../theme';
@@ -17,6 +20,7 @@ const openVideo = (url: string) =>
 export default function ExerciseScreen({ route, navigation }: Props) {
   const { sessionId, exerciseId } = route.params;
   const [ex, setEx] = useState<EffectiveExercise | null>(null);
+  const [history, setHistory] = useState<ExercisePoint[]>([]);
 
   useEffect(() => {
     effectiveSession(sessionId).then(({ exercises }) => {
@@ -24,6 +28,7 @@ export default function ExerciseScreen({ route, navigation }: Props) {
       setEx(found);
       if (found) navigation.setOptions({ title: found.name });
     });
+    getLogs().then(logs => setHistory(exerciseHistory(logs, exerciseId)));
   }, [sessionId, exerciseId, navigation]);
 
   if (!ex) return <View style={ui.screen} />;
@@ -72,6 +77,8 @@ export default function ExerciseScreen({ route, navigation }: Props) {
           <Text style={[ui.body, { color: colors.accent, marginTop: space.sm }]}>Coach: {ex.coachNote}</Text>
         )}
       </View>
+
+      <ExerciseProgress points={history} swapped={ex.swapped} />
 
       <Text style={ui.small}>
         The demo shows the movement pattern. Your plan's cues and equipment win if they differ, e.g. a band
