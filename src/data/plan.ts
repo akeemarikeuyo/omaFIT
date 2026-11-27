@@ -8,6 +8,11 @@ export interface Exercise {
   id: string;
   name: string;
   sets: number;
+  /**
+   * Key exercise: kept in the Short version of the session, with this many sets (never more than `sets`).
+   * Missing = left out of Short. Swaps keep it, so a swapped-in exercise fills the same slot.
+   */
+  shortSets?: number;
   /** Target per set, e.g. "10", "8-12", "30-45 s" */
   reps: string;
   perSide?: boolean;
@@ -43,26 +48,26 @@ export const POSTURE: Session = {
       demoId: 'Cat_Stretch',
     },
     {
-      id: 'chin-tuck', name: 'Chin tucks (5 s hold)', sets: 1, reps: '10', loaded: false, equipment: 'None',
+      id: 'chin-tuck', name: 'Chin tucks (5 s hold)', sets: 1, shortSets: 1, reps: '10', loaded: false, equipment: 'None',
       cues: ['Glide your chin straight back, like making a double chin', 'Eyes stay level, do not tilt up or down'],
       // No close photo demo in the free dataset. Video: Dr. Dawn Thomas Physical Therapy.
       videoUrl: 'https://www.youtube.com/shorts/oO9Zernkbxg',
     },
     {
-      id: 'thoracic-ext', name: 'Thoracic extension over bench edge', sets: 1, reps: '8', loaded: false,
+      id: 'thoracic-ext', name: 'Thoracic extension over bench edge', sets: 1, shortSets: 1, reps: '8', loaded: false,
       equipment: 'Bench + rolled mat as pad',
       cues: ['Hands behind head', 'Arch the upper back only', 'Keep ribs down, lower back still'],
       // No close photo demo in the free dataset. Video: React Physical Therapy.
       videoUrl: 'https://www.youtube.com/shorts/PCDYP9gpHWk',
     },
     {
-      id: 'pec-stretch', name: 'Doorway pec stretch', sets: 1, reps: '30-45 s', perSide: true, loaded: false,
+      id: 'pec-stretch', name: 'Doorway pec stretch', sets: 1, shortSets: 1, reps: '30-45 s', perSide: true, loaded: false,
       equipment: 'Doorframe',
       cues: ['Elbow at shoulder height on the frame', 'Step through gently until you feel the chest stretch'],
       demoId: 'Chest_And_Front_Of_Shoulder_Stretch',
     },
     {
-      id: 'pull-apart', name: 'Band pull-aparts', sets: 2, reps: '15', loaded: false, equipment: 'Red band',
+      id: 'pull-apart', name: 'Band pull-aparts', sets: 2, shortSets: 2, reps: '15', loaded: false, equipment: 'Red band',
       cues: ['Arms straight at shoulder height', 'Squeeze shoulder blades down and back', 'No shrugging'],
       demoId: 'Band_Pull_Apart',
     },
@@ -98,19 +103,19 @@ export const DAY_A: Session = {
   restSeconds: 75,
   exercises: [
     {
-      id: 'goblet-squat', name: 'Goblet squat', sets: 3, reps: '10', loaded: true,
+      id: 'goblet-squat', name: 'Goblet squat', sets: 3, shortSets: 2, reps: '10', loaded: true,
       equipment: 'One dumbbell at chest',
       cues: ['Chest up', 'Sit down between your hips', 'Knees track over toes'],
       demoId: 'Goblet_Squat',
     },
     {
-      id: 'one-arm-row', name: 'One-arm dumbbell row', sets: 4, reps: '10', perSide: true, loaded: true,
+      id: 'one-arm-row', name: 'One-arm dumbbell row', sets: 4, shortSets: 3, reps: '10', perSide: true, loaded: true,
       equipment: 'Dumbbell + bench',
       cues: ['Knee and hand on the bench, flat back', 'Pull your elbow toward your hip', 'Pause at the top'],
       demoId: 'One-Arm_Dumbbell_Row',
     },
     {
-      id: 'pushup-bars', name: 'Push-ups on push-up bars', sets: 3, reps: '8-12', loaded: false,
+      id: 'pushup-bars', name: 'Push-ups on push-up bars', sets: 3, shortSets: 2, reps: '8-12', loaded: false,
       equipment: 'Push-up bars',
       cues: ['Body in one straight line', 'Elbows about 45 degrees from your body', 'Chest to bar height'],
       demoId: 'Pushups',
@@ -122,7 +127,7 @@ export const DAY_A: Session = {
       demoId: 'Stiff-Legged_Dumbbell_Deadlift',
     },
     {
-      id: 'face-pull', name: 'Band face pull', sets: 3, reps: '15', loaded: false,
+      id: 'face-pull', name: 'Band face pull', sets: 3, shortSets: 2, reps: '15', loaded: false,
       equipment: 'Black band on a rack upright at face height',
       cues: ['Pull toward your eyes, elbows high', 'Finish with thumbs pointing back', 'Squeeze the rear shoulders'],
       demoId: 'Face_Pull',
@@ -148,13 +153,13 @@ export const DAY_B: Session = {
   restSeconds: 75,
   exercises: [
     {
-      id: 'split-squat', name: 'Dumbbell split squat', sets: 3, reps: '8', perSide: true, loaded: true,
+      id: 'split-squat', name: 'Dumbbell split squat', sets: 3, shortSets: 2, reps: '8', perSide: true, loaded: true,
       equipment: 'Two dumbbells',
       cues: ['Torso tall', 'Back knee drops straight down', 'Front heel stays down'],
       demoId: 'Split_Squat_with_Dumbbells',
     },
     {
-      id: 'chest-supported-row', name: 'Chest-supported dumbbell row', sets: 4, reps: '10', loaded: true,
+      id: 'chest-supported-row', name: 'Chest-supported dumbbell row', sets: 4, shortSets: 3, reps: '10', loaded: true,
       equipment: 'Incline bench + dumbbells',
       cues: ['Chest stays on the pad', 'Squeeze shoulder blades together at the top'],
       demoId: 'Dumbbell_Incline_Row',
@@ -166,7 +171,7 @@ export const DAY_B: Session = {
       demoId: 'Barbell_Bench_Press_-_Medium_Grip',
     },
     {
-      id: 'hip-thrust', name: 'Hip thrust', sets: 3, reps: '12', loaded: true,
+      id: 'hip-thrust', name: 'Hip thrust', sets: 3, shortSets: 2, reps: '12', loaded: true,
       equipment: 'Upper back on bench, weight on hips',
       cues: ['Chin tucked, ribs down', 'Squeeze glutes hard at the top', 'Shins vertical at the top'],
       demoId: 'Barbell_Hip_Thrust',
@@ -178,7 +183,7 @@ export const DAY_B: Session = {
       demoId: 'Dumbbell_One-Arm_Shoulder_Press',
     },
     {
-      id: 'rear-delt', name: 'Pull-apart + rear-delt fly superset', sets: 3, reps: '15 each', loaded: true,
+      id: 'rear-delt', name: 'Pull-apart + rear-delt fly superset', sets: 3, shortSets: 2, reps: '15 each', loaded: true,
       equipment: 'Red band + light dumbbells',
       cues: ['Lead with the elbows', 'No shrugging', 'Light weight, slow tempo'],
       demoId: 'Reverse_Flyes',

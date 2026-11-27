@@ -94,6 +94,8 @@ export interface Settings {
   reviewDay?: number;
   /** When "Reset plan to original" was last used: unlocks one extra weekly review. */
   planResetAt?: string;
+  /** Full or Short sessions, the user's last choice on Today. Missing = full. See src/data/sessionLength.ts. */
+  sessionLength?: 'full' | 'short';
 }
 const SETTINGS = 'settings_v1';
 
@@ -167,6 +169,8 @@ export interface WorkoutLog {
    * rated yet. Missing = finished (all logs before this field existed were saved at the end).
    */
   finished?: boolean;
+  /** The Short version: key exercises only, fewer sets. Missing = full. */
+  short?: boolean;
 }
 
 /** A workout saved as it goes and not finished yet. Its pain and effort are not ratings yet. */

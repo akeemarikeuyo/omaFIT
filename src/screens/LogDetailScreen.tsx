@@ -74,6 +74,7 @@ export default function LogDetailScreen({ route, navigation }: Props) {
           </>
         )}
         {isUnfinished(log) && <Text style={[ui.small, { color: colors.warn }]}>Not finished.</Text>}
+        {log.kind === 'session' && log.short && <Text style={ui.small}>Short version: key exercises, fewer sets.</Text>}
         <Text style={ui.small}>Logged entries can't be edited. To delete one, long-press it in History on the Progress tab.</Text>
       </View>
 

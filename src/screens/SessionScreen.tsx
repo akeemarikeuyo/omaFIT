@@ -9,6 +9,7 @@ import { Button, Pill, ScalePicker } from '../components/ui';
 import { cleanPains, lowerBackScore, maxPain, painsOf, redFlagsFor } from '../data/pain';
 import { EffectiveExercise, effectiveSession } from '../data/effective';
 import { Session } from '../data/plan';
+import { estimateSeconds, hasShortVersion, shortVersion } from '../data/sessionLength';
 import { RootStackParamList } from '../navigation';
 import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert, soundRestAlertNow } from '../session/restAlert';
 import {
@@ -96,18 +97,23 @@ export default function SessionScreen({ route, navigation }: Props) {
   const startedAt = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [resumed, setResumed] = useState(false);
+  // The Short version: key exercises only, fewer sets. A workout continued today keeps the length it started with.
+  const [short, setShort] = useState(false);
   const finishing = useRef(false);
   // Saves run one after another, so an older save can never overwrite a newer one
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     (async () => {
-      const { session: s, exercises: exs } = await effectiveSession(sessionId);
+      const { session: s, exercises: all } = await effectiveSession(sessionId);
       const open = await unfinishedToday(sessionId);
+      const isShort = (open ? !!open.short : !!route.params.short) && hasShortVersion(all);
+      const exs = isShort ? shortVersion(all) : all;
+      setShort(isShort);
       setSession(s);
       setExercises(exs);
       setRestSeconds(restSecondsFor(s, await getSettings()));
-      navigation.setOptions({ title: s.title });
+      navigation.setOptions({ title: isShort ? `${s.title} · Short` : s.title });
       const initial: Record<string, SetState[]> = {};
       const last: Record<string, string> = {};
       for (const ex of exs) {
@@ -144,7 +150,7 @@ export default function SessionScreen({ route, navigation }: Props) {
       setLastText(last);
       setLoaded(true);
     })();
-  }, [sessionId, navigation]);
+  }, [sessionId, navigation, route.params.short]);
 
   /** Saves the workout so far as unfinished. Nothing is saved until a set is ticked; untick them all and it's removed. */
   const saveProgress = useCallback(
@@ -173,12 +179,13 @@ export default function SessionScreen({ route, navigation }: Props) {
             effort: snapshot.effort,
             notes: snapshot.notes,
             finished: false,
+            short: short || undefined,
           };
           await saveWorkout(log);
         })
         .catch(() => console.warn('Could not save workout progress'));
     },
-    [exercises, sessionId],
+    [exercises, sessionId, short],
   );
 
   // Save shortly after any change. The latest state is also saved when the app goes to the background or the
@@ -304,6 +311,14 @@ export default function SessionScreen({ route, navigation }: Props) {
   const totalSets = Object.values(sets).reduce((n, a) => n + a.filter(s => !s.skipped).length, 0);
   const doneSets = Object.values(sets).reduce((n, a) => n + a.filter(s => s.done).length, 0);
 
+  // Where you are and roughly how long is left, so the end is always in sight
+  const currentIndex = exercises.findIndex(ex => ex.id === currentId);
+  const secondsLeft = estimateSeconds(
+    exercises.map(ex => ({ ex, sets: (sets[ex.id] ?? []).filter(x => !x.done && !x.skipped).length })),
+    restSeconds,
+  );
+  const minutesLeft = Math.max(1, Math.round(secondsLeft / 60));
+
   const finish = async () => {
     if (doneSets === 0) return Alert.alert('Tick off at least one set first.');
     const rated = cleanPains(pains);
@@ -321,6 +336,7 @@ export default function SessionScreen({ route, navigation }: Props) {
       effort,
       notes,
       finished: true,
+      short: short || undefined,
     });
     if (maxPain(rated) >= 7) {
       Alert.alert('Saved. Take it easy.', `That is a high pain score. ${redFlagsFor(rated.filter(p => p.score >= 7))}`);
@@ -357,12 +373,14 @@ export default function SessionScreen({ route, navigation }: Props) {
         <View style={{ gap: 4 }}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
             <Text style={ui.h3}>
-              {doneSets} of {totalSets} sets
-            </Text>
-            <Text style={ui.small}>
-              {restSeconds} s rest{sessionId !== 'posture' ? ' (change in Settings)' : ''}
+              {currentIndex >= 0
+                ? `Exercise ${currentIndex + 1} of ${exercises.length} · about ${minutesLeft} min left`
+                : 'Nothing left: finish below'}
             </Text>
           </View>
+          <Text style={ui.small}>
+            {doneSets} of {totalSets} sets · {restSeconds} s rest{sessionId !== 'posture' ? ' (change in Settings)' : ''}
+          </Text>
           <View
             style={{ height: 8, borderRadius: 4, backgroundColor: colors.cardAlt, overflow: 'hidden' }}
             accessibilityRole="progressbar"

@@ -128,7 +128,9 @@ export function logsAsText(logs: AnyLog[]): string {
         byEx.set(s.exerciseId, [...(byEx.get(s.exerciseId) ?? []), parts || 'done']);
       }
       const exLines = [...byEx.entries()].map(([id, sets]) => `   [${id}] ${exerciseLabel(id)}: ${sets.join(', ')}`);
-      const title = l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`;
+      const title =
+        (l.session === 'posture' ? 'Posture routine' : `Strength Day ${l.session}`) +
+        (l.short ? ' (short version by choice: key exercises, fewer sets)' : '');
       return (
         `${day} ${title} | ` +
         (l.finished === false

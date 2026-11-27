@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { LogRow } from '../components/LogRow';
-import { Button, Pill } from '../components/ui';
+import { Button, Pill, Segmented } from '../components/ui';
 import { WeekPlan } from '../components/WeekPlan';
 import { EffectiveExercise, effectivePlan } from '../data/effective';
 import { planMisfits } from '../data/library';
@@ -14,6 +14,7 @@ import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
 import { upcomingDays } from '../data/week';
+import { hasShortVersion, SessionLength, sessionMinutes, shortVersion } from '../data/sessionLength';
 import { RootStackParamList } from '../navigation';
 import {
   AnyLog,
@@ -23,6 +24,9 @@ import {
   isUnfinished,
   nextStrengthSession,
   programWeek,
+  restSecondsFor,
+  saveSettings,
+  Settings,
   unfinishedToday,
   WorkoutLog,
 } from '../storage/store';
@@ -34,6 +38,7 @@ export default function TodayScreen() {
   const nav = useNavigation<Nav>();
   const [week, setWeek] = useState(1);
   const [startDate, setStartDate] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [plan, setPlan] = useState<Record<SessionId, EffectiveExercise[]> | null>(null);
   const [next, setNext] = useState<'A' | 'B'>('A');
   const [logs, setLogs] = useState<AnyLog[]>([]);
@@ -45,6 +50,7 @@ export default function TodayScreen() {
     const s = await getSettings();
     setWeek(programWeek(s.startDate));
     setStartDate(s.startDate);
+    setSettings(s);
     setNext(await nextStrengthSession());
     setLogs(await getLogs());
     setOpen(await unfinishedToday());
@@ -88,7 +94,23 @@ export default function TodayScreen() {
   const openDone = open ? open.sets.filter(s => s.done).length : 0;
   const painHigh = highPains.length > 0;
 
-  const start = (id: SessionId) => nav.navigate('Session', { sessionId: id });
+  // Full or Short, remembered from last time
+  const length: SessionLength = settings?.sessionLength ?? 'full';
+  const chooseLength = (l: SessionLength) => {
+    setSettings(cur => (cur ? { ...cur, sessionLength: l } : cur));
+    saveSettings({ sessionLength: l }).catch(() => console.warn('Could not save session length'));
+  };
+  const minutesFor = (id: SessionId, l: SessionLength) => {
+    const exs = plan?.[id] ?? [];
+    const rest = settings ? restSecondsFor(SESSIONS[id], settings) : SESSIONS[id].restSeconds;
+    return sessionMinutes(l === 'short' && hasShortVersion(exs) ? shortVersion(exs) : exs, rest);
+  };
+  // What's still to do today, for the Full / Short choice
+  const todo: SessionId[] = [...(postureLog ? [] : ['posture' as const]), ...(kind === 'strength' && !strengthLog ? [strengthId] : [])];
+  const canShorten = !!plan && todo.some(id => hasShortVersion(plan[id]));
+  const dayMinutes = (l: SessionLength) => todo.reduce((n, id) => n + minutesFor(id, l), 0);
+
+  const start = (id: SessionId) => nav.navigate('Session', { sessionId: id, short: length === 'short' });
   // Today's strength session if today is a strength day, otherwise the next one; the week alternates from there
   const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next) : [];
 
@@ -171,12 +193,29 @@ export default function TodayScreen() {
           </View>
         )}
 
+        {canShorten && !open && (
+          <View style={{ gap: space.xs }}>
+            <Text style={ui.small}>How much time do you have today?</Text>
+            <Segmented
+              options={[
+                { key: 'full', label: `Full · ~${dayMinutes('full')} min` },
+                { key: 'short', label: `Short · ~${dayMinutes('short')} min` },
+              ]}
+              value={length}
+              onChange={chooseLength}
+            />
+            {length === 'short' && <Text style={ui.small}>Short keeps the key exercises with fewer sets.</Text>}
+          </View>
+        )}
+
         <Pressable onPress={() => (postureLog ? view(postureLog) : start('posture'))} style={ui.card}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
             <Text style={ui.h2}>{SESSIONS.posture.title}</Text>
             {postureLog && <Pill text="Done" color={colors.good} />}
           </View>
-          <Text style={ui.muted}>{SESSIONS.posture.subtitle}</Text>
+          <Text style={ui.muted}>{postureLog
+              ? SESSIONS.posture.subtitle
+              : `Daily, about ${minutesFor('posture', length)} min${length === 'short' ? ' (short)' : ''}. Also your warm-up on strength days.`}</Text>
           <CardLink done={!!postureLog} />
         </Pressable>
 
@@ -190,6 +229,11 @@ export default function TodayScreen() {
               {strengthLog ? <Pill text="Done" color={colors.good} /> : <Pill text="Today" />}
             </View>
             <Text style={ui.muted}>{SESSIONS[strengthId].subtitle}</Text>
+            {!strengthLog && (
+              <Text style={ui.small}>
+                About {minutesFor(strengthId, length)} min{length === 'short' ? ', short version' : ''}
+              </Text>
+            )}
             {!strengthLog && (
               <Text style={ui.muted}>Do the posture routine first as your warm-up. Add a 20 min walk later.</Text>
             )}

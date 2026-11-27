@@ -3,7 +3,7 @@ import { SessionId } from './data/plan';
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
-  Session: { sessionId: SessionId };
+  Session: { sessionId: SessionId; short?: boolean };
   Exercise: { sessionId: SessionId; exerciseId: string };
   Walk: undefined;
   LogDetail: { logId: string };
