@@ -1,4 +1,5 @@
-// The "rest over" alert. This is the only place omaFIT uses notifications (see eslint.config.js).
+// The "rest over" alert, and the notification setup shared with posture breaks (src/session/postureReminders.ts).
+// These are the only places omaFIT uses notifications (see eslint.config.js).
 // When rest starts, the phone is asked to show one local notification with sound when it ends, so the user
 // hears it even in another app. It is created on the phone: no push service, no server, nothing is sent anywhere.
 import {
@@ -21,6 +22,8 @@ const CHANNEL_ID = 'rest-timer';
 // Every rest alert uses this one id: scheduling a new rest replaces the old one, so there is never more than one
 // scheduled or shown at a time
 const ALERT_ID = 'rest-over';
+/** Posture-break reminders' ids start with this (see postureReminders.ts) */
+export const POSTURE_BREAK_PREFIX = 'posture-break-';
 
 let setUp: Promise<void> | null = null;
 let lastSoundAt = 0;
@@ -29,10 +32,14 @@ let lastSoundAt = 0;
  * While omaFIT is open the alert is just a sound (no banner: the rest bar is on screen). In another app or with the
  * screen off, Android shows it as a notification with sound and vibration. Also creates the Android channel.
  */
-function setUpOnce() {
+export function setUpOnce() {
   setUp ??= (async () => {
     setNotificationHandler({
-      handleNotification: async () => {
+      handleNotification: async notification => {
+        // Posture breaks stay quiet while omaFIT is open: the user is already here
+        if (notification.request.identifier.startsWith(POSTURE_BREAK_PREFIX)) {
+          return { shouldPlaySound: false, shouldShowBanner: false, shouldShowList: false, shouldSetBadge: false };
+        }
         // The in-app alert and Android's scheduled one can land together: play one sound, not two
         const now = Date.now();
         const play = now - lastSoundAt > 3000;
@@ -59,8 +66,9 @@ const explain = () =>
   new Promise<'yes' | 'no' | 'closed'>(resolve =>
     Alert.alert(
       'Turn on notifications?',
-      'omaFIT uses them for one thing: a sound when your rest between sets is over, even if you switch to another ' +
-        'app. Nothing else, and nothing is sent anywhere. You can change this later in your phone settings.',
+      'omaFIT uses them for a sound when your rest between sets is over, even if you switch to another app, and ' +
+        'for posture-break reminders if you turn them on in Settings. Nothing is sent anywhere. You can change ' +
+        'this later in your phone settings.',
       [
         { text: 'Not now', style: 'cancel', onPress: () => resolve('no') },
         { text: 'Turn on', onPress: () => resolve('yes') },

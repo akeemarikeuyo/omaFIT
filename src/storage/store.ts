@@ -98,6 +98,8 @@ export interface Settings {
   sessionLength?: 'full' | 'short';
   /** The break (its last active day) whose "pick up where you left off" offer was answered. See src/data/comeback.ts. */
   comebackAnswered?: string;
+  /** Opt-in posture-break reminders, Mon-Fri every 90 min between these hours. See src/session/postureReminders.ts. */
+  postureBreaks?: { on: boolean; startHour: number; endHour: number };
 }
 const SETTINGS = 'settings_v1';
 

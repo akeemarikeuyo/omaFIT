@@ -8,6 +8,7 @@ import { DEFAULT_LEVEL, LEVELS, levelInfo, levelOf, TrainingLevel } from '../dat
 import { DEFAULT_REVIEW_DAY, reviewDayOf, WEEKDAYS, WEEKDAYS_LONG } from '../data/reviewSchedule';
 import { currentProvider } from '../api/ai';
 import { fixRestAlerts, RestAlertStatus, restAlertStatus } from '../session/restAlert';
+import { breakTimes, DEFAULT_BREAK_HOURS, setPostureBreaks } from '../session/postureReminders';
 import { getSettings, MIN_REST_SECONDS, Profile, REST_OPTIONS, saveSettings } from '../storage/store';
 import { DAY_A } from '../data/plan';
 import { DEFAULT_EQUIPMENT, EQUIPMENT_OPTIONS, toggleEquipmentKey, userEquipment } from '../data/library';
@@ -42,6 +43,7 @@ export default function SettingsScreen() {
   const [open, setOpen] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [providerLabel, setProviderLabel] = useState('');
   const [alertStatus, setAlertStatus] = useState<RestAlertStatus>('onTime');
+  const [breaks, setBreaks] = useState({ on: false, ...DEFAULT_BREAK_HOURS });
 
   const load = useCallback(async () => {
     const s = await getSettings();
@@ -51,6 +53,7 @@ export default function SettingsScreen() {
     setStartDate(s.startDate);
     setProviderLabel(currentProvider(s).label);
     setAlertStatus(await restAlertStatus());
+    setBreaks(s.postureBreaks ?? { on: false, ...DEFAULT_BREAK_HOURS });
     setBodyweight(s.bodyweightKg ? String(s.bodyweightKg) : '');
     setEquipment(userEquipment(s));
     setEquipmentNotes(s.equipmentNotes ?? '');
@@ -240,6 +243,55 @@ export default function SettingsScreen() {
                   setAlertStatus(await restAlertStatus());
                 }}
               />
+            )}
+          </View>
+          <View style={{ gap: space.sm }}>
+            <Text style={ui.h3}>Posture breaks</Text>
+            <Text style={ui.small}>
+              Monday to Friday, every 90 min in your work hours: a quick posture check, never an exercise. Made on your
+              phone, nothing is sent anywhere.
+            </Text>
+            <Segmented
+              options={[
+                { key: 'off', label: 'Off' },
+                { key: 'on', label: 'On' },
+              ]}
+              value={breaks.on ? 'on' : 'off'}
+              onChange={async k => {
+                const on = await setPostureBreaks(k === 'on', breaks);
+                setBreaks(b => ({ ...b, on }));
+              }}
+            />
+            {breaks.on && (
+              <>
+                <Text style={ui.small}>From</Text>
+                <Segmented
+                  options={[7, 8, 9, 10].map(h => ({ key: h, label: `${h}:00` }))}
+                  value={breaks.startHour}
+                  onChange={async startHour => {
+                    const next = { ...breaks, startHour };
+                    setBreaks(next);
+                    await setPostureBreaks(true, next);
+                  }}
+                />
+                <Text style={ui.small}>Until</Text>
+                <Segmented
+                  options={[16, 17, 18, 19].map(h => ({ key: h, label: `${h}:00` }))}
+                  value={breaks.endHour}
+                  onChange={async endHour => {
+                    const next = { ...breaks, endHour };
+                    setBreaks(next);
+                    await setPostureBreaks(true, next);
+                  }}
+                />
+                <Text style={ui.small}>
+                  {breakTimes(breaks.startHour, breaks.endHour).length} a day, starting{' '}
+                  {breakTimes(breaks.startHour, breaks.endHour)
+                    .slice(0, 1)
+                    .map(t => `${t.hour}:${String(t.minute).padStart(2, '0')}`)}
+                  .
+                </Text>
+              </>
             )}
           </View>
           <View style={{ gap: space.sm }}>

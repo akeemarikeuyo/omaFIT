@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchScreen } from './src/components/LaunchScreen';
 import { RootStackParamList, TabParamList } from './src/navigation';
 import { offerRestAlertsOnce } from './src/session/restAlert';
+import { syncPostureBreaks } from './src/session/postureReminders';
 import { getLogs, getSettings, saveSettings } from './src/storage/store';
 import CoachScreen from './src/screens/CoachScreen';
 import ExerciseScreen from './src/screens/ExerciseScreen';
@@ -134,6 +135,11 @@ export default function App() {
   useEffect(() => {
     if (!showLaunch && !needsSetup) void offerRestAlertsOnce();
   }, [showLaunch, needsSetup]);
+
+  // Keep the phone's posture-break schedule matching the setting (only does anything if the user turned them on)
+  useEffect(() => {
+    void syncPostureBreaks();
+  }, []);
 
   const onLaunchLayout = useCallback(() => SplashScreen.hide(), []);
   const onLaunchHidden = useCallback(() => setShowLaunch(false), []);
