@@ -35,7 +35,7 @@ export const ui = StyleSheet.create({
   h3: { color: colors.text, fontSize: 16, fontWeight: '700' },
   body: { color: colors.text, fontSize: 15, lineHeight: 21 },
   muted: { color: colors.muted, fontSize: 14, lineHeight: 19 },
-  small: { color: colors.muted, fontSize: 12 },
+  small: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   input: {
     backgroundColor: colors.cardAlt,

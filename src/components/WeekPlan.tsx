@@ -1,4 +1,5 @@
 // "Your week": today and the next six days from the plan. Tap a day to see its exercises.
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { EffectiveExercise } from '../data/effective';
@@ -78,6 +79,12 @@ export function WeekPlan({
               style={[ui.row, { alignItems: 'flex-start' }]}
             >
               <Text style={[ui.h3, { width: 84, color: i <= 1 ? colors.accent : colors.text }]}>{dayLabel(i, day.date)}</Text>
+              <Ionicons
+                name={day.kind === 'strength' ? 'barbell-outline' : day.kind === 'rest' ? 'moon-outline' : 'walk-outline'}
+                size={16}
+                color={colors.muted}
+                style={{ marginTop: 2 }}
+              />
               <Text style={[day.kind === 'rest' ? ui.muted : ui.body, { flex: 1 }]}>{daySummary(day)}</Text>
               <Text style={ui.small}>{isOpen ? '▲' : '▼'}</Text>
             </Pressable>
