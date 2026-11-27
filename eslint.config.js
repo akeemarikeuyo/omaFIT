@@ -102,11 +102,15 @@ const OWNED = {
       { name: 'expo-image-manipulator', message: 'Photo processing is only for the posture check in PlanBuilderScreen.' },
     ],
   },
-  // Approved by the maintainer for one use: a local "rest over" alert during a workout. No push notifications.
+  // Approved by the maintainer for two local uses: the "rest over" alert during a workout, and opt-in posture-break
+  // reminders during work hours. No push notifications.
   restAlert: {
-    files: ['src/session/restAlert.ts'],
+    files: ['src/session/restAlert.ts', 'src/session/postureReminders.ts'],
     paths: [
-      { name: 'expo-notifications', message: 'Notifications are only for the local rest-timer alert in src/session/restAlert.ts.' },
+      {
+        name: 'expo-notifications',
+        message: 'Notifications are only for the rest alert (src/session/restAlert.ts) and posture breaks (src/session/postureReminders.ts).',
+      },
     ],
   },
 };
