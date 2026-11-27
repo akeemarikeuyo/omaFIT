@@ -8,7 +8,8 @@ export type RootStackParamList = {
   Walk: undefined;
   LogDetail: { logId: string };
   Setup: undefined;
-  PlanBuilder: undefined;
+  /** checkIn: opened from the posture check-in card, so it starts ready for new photos */
+  PlanBuilder: { checkIn?: boolean } | undefined;
 };
 
 export type TabParamList = {

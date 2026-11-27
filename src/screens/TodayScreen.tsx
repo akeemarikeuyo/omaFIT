@@ -15,12 +15,15 @@ import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
 import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
 import { upcomingDays } from '../data/week';
 import { comebackOffer, startDateForWeek } from '../data/comeback';
+import { postureCheckDue, snoozeUntil } from '../data/postureCheck';
 import { hasShortVersion, SessionLength, sessionMinutes, shortVersion } from '../data/sessionLength';
 import { RootStackParamList } from '../navigation';
 import {
   AnyLog,
   getLogs,
+  getPostureHistory,
   getSettings,
+  PostureAssessment,
   isPainRated,
   isUnfinished,
   nextStrengthSession,
@@ -46,6 +49,7 @@ export default function TodayScreen() {
   const [open, setOpen] = useState<WorkoutLog | null>(null);
 
   const [misfits, setMisfits] = useState<string[]>([]);
+  const [postureChecks, setPostureChecks] = useState<PostureAssessment[]>([]);
 
   const load = useCallback(async () => {
     const s = await getSettings();
@@ -55,6 +59,7 @@ export default function TodayScreen() {
     setNext(await nextStrengthSession());
     setLogs(await getLogs());
     setOpen(await unfinishedToday());
+    setPostureChecks(await getPostureHistory());
     const current = await effectivePlan();
     setPlan(current);
     // Only once the user has picked their own equipment: the default plan fits the default kit
@@ -123,6 +128,12 @@ export default function TodayScreen() {
     });
     await load();
   };
+  // Every 4 weeks after a posture check, suggest a new one
+  const checkDue = settings ? postureCheckDue(postureChecks, settings.postureCheckSnoozedUntil) : null;
+  const snoozeCheck = async () => {
+    await saveSettings({ postureCheckSnoozedUntil: snoozeUntil() });
+    await load();
+  };
   const away = comeback && (comeback.daysAway < 28 ? `${comeback.daysAway} days` : `${Math.floor(comeback.daysAway / 7)} weeks`);
   // Today's strength session if today is a strength day, otherwise the next one; the week alternates from there
   const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next) : [];
@@ -167,6 +178,18 @@ export default function TodayScreen() {
             )}
             <Button title={`Start at week ${comeback.resumeWeek}`} onPress={() => answerComeback(true)} />
             <Button title={`Keep week ${comeback.weekNow}`} kind="secondary" onPress={() => answerComeback(false)} />
+          </View>
+        )}
+
+        {checkDue != null && !comeback && (
+          <View style={[ui.card, { gap: space.sm }]}>
+            <Text style={ui.h2}>Time for a posture check</Text>
+            <Text style={ui.muted}>
+              Your last one was {Math.floor(checkDue / 7)} weeks ago. New photos show what has changed since. They go
+              only to your AI provider, and omaFIT doesn't keep them.
+            </Text>
+            <Button title="Check my posture" onPress={() => nav.navigate('PlanBuilder', { checkIn: true })} />
+            <Button title="Not now" kind="secondary" onPress={snoozeCheck} />
           </View>
         )}
 

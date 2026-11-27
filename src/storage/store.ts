@@ -100,6 +100,8 @@ export interface Settings {
   comebackAnswered?: string;
   /** Opt-in posture-break reminders, Mon-Fri every 90 min between these hours. See src/session/postureReminders.ts. */
   postureBreaks?: { on: boolean; startHour: number; endHour: number };
+  /** "Not now" on the posture check-in card hides it until this date. See src/data/postureCheck.ts. */
+  postureCheckSnoozedUntil?: string;
 }
 const SETTINGS = 'settings_v1';
 
@@ -389,8 +391,24 @@ export interface PostureAssessment {
   findings: string[];
 }
 const POSTURE = 'posture_assessment_v1';
+/** Earlier checks too, newest first, so the user can see what changed. The latest is also kept in POSTURE. */
+const POSTURE_HISTORY = 'posture_history_v1';
+const POSTURE_HISTORY_MAX = 10;
 export const getPostureAssessment = () => readJson<PostureAssessment | null>(POSTURE, null);
-export const savePostureAssessment = (a: PostureAssessment) => writeJson(POSTURE, a);
+
+/** Every posture check, newest first. Before the history existed only the latest was kept. */
+export async function getPostureHistory(): Promise<PostureAssessment[]> {
+  const history = await readJson<PostureAssessment[]>(POSTURE_HISTORY, []);
+  if (history.length) return history;
+  const latest = await getPostureAssessment();
+  return latest ? [latest] : [];
+}
+
+export async function savePostureAssessment(a: PostureAssessment) {
+  const history = await getPostureHistory();
+  await writeJson(POSTURE_HISTORY, [a, ...history].slice(0, POSTURE_HISTORY_MAX));
+  await writeJson(POSTURE, a);
+}
 
 // ---------- weekly reviews ----------
 

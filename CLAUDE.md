@@ -73,7 +73,7 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 - **Nothing changes the plan silently.** AI suggestions apply only when the user taps Apply (`mergeOverrides`,
   `addAdditions`). `plan.ts` is the baseline, and "Reset plan" (`resetPlan`) must keep working.
 - **Posture photos are never stored by the app.** They're resized on the phone, sent once to the user's AI provider
-  and dropped. Only the text findings are saved (`posture_assessment_v1`). The AI describes, never diagnoses.
+  and dropped. Only the text findings are saved (`posture_assessment_v1` = latest, `posture_history_v1` = last 10, newest first; `getPostureHistory()`). Every 4 weeks after a check, Today suggests a new one (`src/data/postureCheck.ts`, "Not now" snoozes a week); the plan screen shows the previous findings beside the new ones. The AI describes, never diagnoses.
 - **Conservative coaching rules:** no barbell back squats or heavy barbell deadlifts, pull volume ≥ 2x push, pain
   ≥ 5 in any area means reduce load on what loads that area, and red flags mean see a doctor or physio. Pain is logged
   per area (`PainEntry`, `src/data/pain.ts`): read it with `painsOf()`, never `backPain` directly (it's the lower back
