@@ -23,7 +23,10 @@ from the bundled library. Users choose their AI in Settings: Gemini (Google, the
 
 ## Commands
 - `npx expo start` — run in Expo Go (`--tunnel` if the phone can't connect, `-c` to clear the cache)
-- `npm run check` — lint + type-check. Run after every change and fix all errors; CI runs the same on every PR.
+- `npm run check` — lint + type-check + tests. Run after every change and fix all errors; CI runs the same on every PR.
+- `npm test` (Jest, `jest-expo` preset) — unit tests in `src/__tests__/*.test.ts`. Storage is an in-memory AsyncStorage
+  mock (`jest.setup.js`), so tests start from default settings and the baseline plan. Import `describe`/`it`/`expect`
+  from `@jest/globals`.
 - `npm run lint` (`expo lint`) — code quality and security rules from `eslint.config.js`
 - `npm run typecheck` (`npx tsc --noEmit`)
 - `npx expo install <pkg>` — add packages with SDK-compatible versions. Don't use plain `npm install <pkg>` for
@@ -157,7 +160,10 @@ Don't work around a lint rule. If a rule blocks something that's genuinely neede
 - Keep UI text short and plain. Units: kg, minutes. The brand is written **omaFIT**.
 
 ## Testing
-No automated tests yet. After a change, run `npm run check`, then check it on a phone in Expo Go.
+Unit tests cover the safety checks (`validateChanges`, `validateProposal`, `rejectReason`), the streak, the week plan,
+Short sessions and the comeback offer. A safety test failing means a rule got looser: fix the code, don't change the
+test, unless the maintainer agreed the rule change. Add tests for new pure logic. After a change, run `npm run check`,
+then check it on a phone in Expo Go.
 Weekday logic (default week; users can change it in Settings → Training → Your week, `Settings.week`, read with
 `weekOf()`): Mon/Wed/Fri strength (alternating A/B), Tue/Thu walk, Sat long walk, Sun rest. Always pass the user's week
 to `dayKind`, `walkToday`, `upcomingDays` and `summary`. Use "Start a new

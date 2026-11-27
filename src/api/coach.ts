@@ -237,7 +237,7 @@ function heaviestRecent(logs: AnyLog[], exerciseId: string): number | null {
 }
 
 /** App-side safety checks on the AI's suggestions, so a bad suggestion can't slip through. */
-async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
+export async function validateChanges(raw: RawChange[], logs: AnyLog[]) {
   const level = levelOf(await getSettings());
   const plan = await effectivePlan();
   const sessionOf = new Map<string, SessionId>();
