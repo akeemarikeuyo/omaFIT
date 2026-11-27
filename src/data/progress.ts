@@ -157,3 +157,33 @@ export function encouragement(s: Summary): string {
   if (s.streak >= s.bestStreak && s.streak > 1) return 'This is your best streak yet. Keep going.';
   return 'Done for today. See you tomorrow.';
 }
+
+/** One workout's best set of an exercise: heaviest weight (most reps at it), or most reps if no weight was logged. */
+export interface ExercisePoint {
+  date: string;
+  weightKg?: number;
+  reps?: number;
+}
+
+/** Best set per workout for one exercise, oldest first. Only ticked sets count. */
+export function exerciseHistory(logs: AnyLog[], exerciseId: string): ExercisePoint[] {
+  const out: ExercisePoint[] = [];
+  for (const l of logs) {
+    if (l.kind !== 'session') continue;
+    const sets = l.sets.filter(s => s.exerciseId === exerciseId && s.done);
+    if (!sets.length) continue;
+    const best = sets.reduce((a, b) => {
+      const wa = a.weightKg ?? -1;
+      const wb = b.weightKg ?? -1;
+      if (wb !== wa) return wb > wa ? b : a;
+      return (b.reps ?? -1) > (a.reps ?? -1) ? b : a;
+    });
+    out.push({ date: l.date, weightKg: best.weightKg, reps: best.reps });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** The number to chart: weight if this exercise has logged weights, otherwise reps. */
+export function pointValue(p: ExercisePoint, byWeight: boolean): number {
+  return (byWeight ? p.weightKg : p.reps) ?? 0;
+}
