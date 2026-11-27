@@ -125,7 +125,8 @@ export default function TodayScreen() {
                     width: 10,
                     height: 10,
                     borderRadius: 5,
-                    backgroundColor: d.active ? colors.accent : colors.cardAlt,
+                    // A planned rest day shows dimmer: it keeps the streak
+                    backgroundColor: d.active ? colors.accent : dayKind(d.date) === 'rest' ? `${colors.accent}66` : colors.cardAlt,
                     borderWidth: d.key === last7[6].key ? 1 : 0,
                     borderColor: colors.accent,
                   }}

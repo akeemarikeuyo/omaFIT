@@ -1,6 +1,7 @@
 // Daily progress stats built from the workout logs. Read-only: nothing here is stored.
 import { AnyLog, isPainRated } from '../storage/store';
 import { maxPain, painLabel, painsOf } from './pain';
+import { dayKind } from './plan';
 
 /** Local calendar day as YYYY-MM-DD (logs are stored in UTC, but a day is your day). */
 export function dayKey(d: Date): string {
@@ -61,7 +62,10 @@ export function dailyStats(logs: AnyLog[], days: number, now = new Date()): DayS
 }
 
 export interface Summary {
-  /** Days in a row with something logged. Today still counts as "not missed yet". */
+  /**
+   * Days in a row on plan: days with something logged, plus planned rest days that follow one
+   * (resting on plan keeps the streak and adds to it, but can't start one). Today still counts as "not missed yet".
+   */
   streak: number;
   bestStreak: number;
   /** Active days since Monday */
@@ -71,6 +75,8 @@ export interface Summary {
   totalWorkouts: number;
   totalWalkMinutes: number;
   activeToday: boolean;
+  /** Today is a planned rest day */
+  restToday: boolean;
 }
 
 export function summary(logs: AnyLog[], now = new Date()): Summary {
@@ -78,20 +84,30 @@ export function summary(logs: AnyLog[], now = new Date()): Summary {
   const shift = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n);
 
   const activeToday = activeDays.has(dayKey(now));
-  // Count back from today if you've trained, otherwise from yesterday,
-  // so the streak doesn't show as broken before the day is over.
-  let streak = 0;
-  for (let i = activeToday ? 0 : -1; activeDays.has(dayKey(shift(i))); i--) streak++;
+  const restToday = dayKind(now) === 'rest';
 
+  // Walk day by day from the first log to today. A logged day adds to the run; a planned rest day
+  // adds only when a run is going, so resting on plan never breaks a streak but can't start one.
+  let run = 0;
+  let runBeforeToday = 0;
   let bestStreak = 0;
-  for (const k of activeDays) {
-    const [y, m, d] = k.split('-').map(Number);
-    // Only start counting at the first day of a run
-    if (activeDays.has(dayKey(new Date(y, m - 1, d - 1)))) continue;
-    let run = 1;
-    while (activeDays.has(dayKey(new Date(y, m - 1, d + run)))) run++;
-    bestStreak = Math.max(bestStreak, run);
+  const first = logs.reduce<Date | null>((min, l) => {
+    const d = new Date(l.date);
+    return !min || d < min ? d : min;
+  }, null);
+  if (first) {
+    const startOffset = Math.round((new Date(first.getFullYear(), first.getMonth(), first.getDate()).getTime() - shift(0).getTime()) / 86400000);
+    for (let i = startOffset; i <= 0; i++) {
+      if (i === 0) runBeforeToday = run;
+      const day = shift(i);
+      if (activeDays.has(dayKey(day))) run++;
+      else if (dayKind(day) === 'rest' && run > 0) run++;
+      else run = 0;
+      bestStreak = Math.max(bestStreak, run);
+    }
   }
+  // If today isn't counted yet, show the streak up to yesterday, so it doesn't look broken before the day is over
+  const streak = run > 0 ? run : runBeforeToday;
 
   const daysIntoWeek = ((now.getDay() + 6) % 7) + 1; // Mon=1 … Sun=7
   let activeThisWeek = 0;
@@ -105,6 +121,7 @@ export function summary(logs: AnyLog[], now = new Date()): Summary {
     totalWorkouts: logs.filter(l => l.kind === 'session').length,
     totalWalkMinutes: logs.reduce((n, l) => n + (l.kind === 'cardio' ? l.minutes : 0), 0),
     activeToday,
+    restToday,
   };
 }
 
@@ -135,6 +152,7 @@ export function painPlaces(logs: AnyLog[], since: Date): PainPlace[] {
 /** A short line to nudge you back. */
 export function encouragement(s: Summary): string {
   if (s.streak === 0) return s.totalWorkouts ? 'Start a new streak today. Even the posture routine counts.' : 'Log your first session to start a streak.';
+  if (!s.activeToday && s.restToday) return `Rest day. Your ${s.streak}-day streak is safe, and resting counts.`;
   if (!s.activeToday) return `Keep your ${s.streak}-day streak alive: do the posture routine today.`;
   if (s.streak >= s.bestStreak && s.streak > 1) return 'This is your best streak yet. Keep going.';
   return 'Done for today. See you tomorrow.';
