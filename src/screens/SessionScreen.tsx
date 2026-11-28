@@ -1,5 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, Text, TextInput, Vibration, View } from 'react-native';
@@ -7,13 +8,15 @@ import { KeyboardAwareScrollView } from '../components/KeyboardAware';
 import { PainPicker } from '../components/PainPicker';
 import { Button, Pill, ScalePicker } from '../components/ui';
 import { cleanPains, lowerBackScore, maxPain, painsOf, redFlagsFor } from '../data/pain';
-import { EffectiveExercise, effectiveSession } from '../data/effective';
+import { EffectiveExercise, effectiveSession, exerciseLabel } from '../data/effective';
 import { Session } from '../data/plan';
 import { estimateSeconds, hasShortVersion, shortVersion } from '../data/sessionLength';
+import { PersonalBest, personalBests, summary } from '../data/progress';
 import { RootStackParamList } from '../navigation';
 import { cancelRestAlert, clearShownRestAlerts, prepareRestAlerts, scheduleRestAlert, soundRestAlertNow } from '../session/restAlert';
 import {
   deleteLog,
+  getLogs,
   getSettings,
   lastPerformance,
   newLogId,
@@ -22,6 +25,7 @@ import {
   saveWorkout,
   SetLog,
   unfinishedToday,
+  weekOf,
   WorkoutLog,
 } from '../storage/store';
 import { colors, space, ui } from '../theme';
@@ -79,10 +83,15 @@ export default function SessionScreen({ route, navigation }: Props) {
   const [effort, setEffort] = useState(3);
   const [notes, setNotes] = useState('');
   const [restSeconds, setRestSeconds] = useState(60);
-  // Finished exercises the user opened again
+  // Exercises opened by hand: finished ones opened again, or upcoming ones opened early (Focus mode shows only the
+  // current exercise in full)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  // Shown after Finish: what was done, before going back
+  const [wrapUp, setWrapUp] = useState<{ sets: number; minutes: number; bests: PersonalBest[]; streak: number } | null>(null);
   // Rest is stored as the time it ends, so it stays right while the app is in the background
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  // Length of the current rest, for the progress bar
+  const [restTotal, setRestTotal] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [alertsOff, setAlertsOff] = useState(false);
   const alertsReady = useRef<Promise<boolean> | null>(null);
@@ -229,14 +238,17 @@ export default function SessionScreen({ route, navigation }: Props) {
     if (!scheduled && gen === restGen.current) alertScheduled.current = false;
   };
 
-  const startRest = (seconds: number) => {
+  const startRest = (seconds: number, total = seconds) => {
     cancelAlert();
     const gen = ++restGen.current;
     const endsAt = Date.now() + seconds * 1000;
     setNow(Date.now());
     setRestEndsAt(endsAt);
+    setRestTotal(total);
     void scheduleAlert(endsAt, gen);
   };
+  /** 15 more seconds of rest, rescheduling the alert */
+  const addRest = () => startRest(rest + 15, restTotal + 15);
 
   const skipRest = () => {
     restGen.current++;
@@ -290,6 +302,7 @@ export default function SessionScreen({ route, navigation }: Props) {
   const toggleDone = (exId: string, i: number) => {
     const wasDone = sets[exId][i].done;
     update(exId, i, { done: !wasDone });
+    if (!wasDone) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (!wasDone && session) startRest(restSeconds);
   };
 
@@ -325,7 +338,7 @@ export default function SessionScreen({ route, navigation }: Props) {
     finishing.current = true;
     // Let any save in progress finish first, then save the final version over it
     await saveQueue.current;
-    await saveWorkout({
+    const finished: WorkoutLog = {
       id: logId.current ?? newLogId(),
       kind: 'session',
       date: startedAt.current ?? new Date().toISOString(),
@@ -337,31 +350,111 @@ export default function SessionScreen({ route, navigation }: Props) {
       notes,
       finished: true,
       short: short || undefined,
-    });
+    };
+    await saveWorkout(finished);
     if (maxPain(rated) >= 7) {
       Alert.alert('Saved. Take it easy.', `That is a high pain score. ${redFlagsFor(rated.filter(p => p.score >= 7))}`);
     }
-    navigation.goBack();
+    // A short summary before going back: sets, time, new bests and the streak
+    const all = await getLogs();
+    const settings = await getSettings();
+    const minutes = Math.max(1, Math.round((Date.now() - new Date(finished.date).getTime()) / 60000));
+    skipRest();
+    setWrapUp({
+      sets: doneSets,
+      // A workout continued later in the day can span hours: only show a time that makes sense
+      minutes: minutes <= 240 ? minutes : 0,
+      bests: personalBests(all, finished),
+      streak: summary(all, new Date(), weekOf(settings)).streak,
+    });
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
 
+  // The set that comes after this rest, shown in the rest panel
+  const nextEx = exercises.find(ex => ex.id === currentId);
+  const nextIndex = nextEx ? (sets[nextEx.id] ?? []).findIndex(x => !x.done && !x.skipped) : -1;
+  const nextState = nextEx && nextIndex >= 0 ? sets[nextEx.id][nextIndex] : null;
+  const nextSet =
+    nextEx && nextState
+      ? {
+          name: nextEx.name,
+          index: nextIndex,
+          target: [
+            nextState.weight ? `${nextState.weight} kg` : null,
+            nextState.reps ? `× ${nextState.reps}` : isTimed(nextEx.reps) ? nextEx.reps : null,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        }
+      : null;
+
   if (!session) return <View style={ui.screen} />;
+
+  if (wrapUp) {
+    return (
+      <View style={[ui.screen, { justifyContent: 'center' }]}>
+        <View style={[ui.content, { gap: space.lg }]}>
+          <Ionicons name="checkmark-circle" size={64} color={colors.good} style={{ alignSelf: 'center' }} />
+          <Text style={[ui.h1, { textAlign: 'center' }]}>Workout done</Text>
+          <Text style={[ui.muted, { textAlign: 'center' }]}>
+            {session.title}
+            {short ? ' · Short' : ''}
+          </Text>
+          <View style={[ui.row, { alignItems: 'stretch' }]}>
+            <SummaryTile value={String(wrapUp.sets)} label="sets" />
+            {wrapUp.minutes > 0 && <SummaryTile value={String(wrapUp.minutes)} label="minutes" />}
+            <SummaryTile value={String(wrapUp.streak)} label="day streak" />
+          </View>
+          {wrapUp.bests.length > 0 && (
+            <View style={[ui.card, { borderColor: colors.accent }]}>
+              <Text style={[ui.h3, { color: colors.accent }]}>New best</Text>
+              {wrapUp.bests.map(b => (
+                <Text key={b.exerciseId} style={ui.body}>
+                  {exerciseLabel(b.exerciseId)}: {b.weightKg} kg (was {b.previousKg} kg)
+                </Text>
+              ))}
+            </View>
+          )}
+          <Button title="Done" onPress={() => navigation.goBack()} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={ui.screen}>
       {rest > 0 && (
-        <Pressable
-          onPress={skipRest}
-          accessibilityRole="button"
-          accessibilityLabel={`Rest, ${rest} seconds left. Tap to skip.`}
-          style={{ backgroundColor: colors.purple, padding: space.md, alignItems: 'center' }}
-        >
-          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>Rest {rest}s · tap to skip</Text>
+        <View style={{ backgroundColor: colors.card, padding: space.lg, gap: space.sm, borderBottomWidth: 1, borderColor: colors.border }}>
+          <View style={[ui.row, { justifyContent: 'space-between' }]}>
+            <View>
+              <Text style={ui.small}>REST</Text>
+              <Text
+                style={{ color: colors.text, fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'] }}
+                accessibilityLabel={`Rest, ${rest} seconds left`}
+              >
+                {Math.floor(rest / 60)}:{String(rest % 60).padStart(2, '0')}
+              </Text>
+            </View>
+            <View style={ui.row}>
+              <Button title="+15 s" kind="secondary" onPress={addRest} style={{ paddingHorizontal: space.md, paddingVertical: 10 }} />
+              <Button title="Skip" onPress={skipRest} style={{ paddingHorizontal: space.md, paddingVertical: 10 }} />
+            </View>
+          </View>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.cardAlt, overflow: 'hidden' }}>
+            <View style={{ height: '100%', width: `${restTotal ? (rest / restTotal) * 100 : 0}%`, backgroundColor: colors.purple }} />
+          </View>
+          {nextSet && (
+            <Text style={ui.muted} numberOfLines={1}>
+              Next: {nextSet.name} · set {nextSet.index + 1}
+              {nextSet.target ? ` · ${nextSet.target}` : ''}
+            </Text>
+          )}
           {alertsOff && (
-            <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }}>
+            <Text style={[ui.small, { color: colors.warn }]}>
               No sound in other apps. Turn on notifications for omaFIT in phone settings.
             </Text>
           )}
-        </Pressable>
+        </View>
       )}
       <KeyboardAwareScrollView contentContainerStyle={ui.content}>
         {resumed && (
@@ -419,6 +512,27 @@ export default function SessionScreen({ route, navigation }: Props) {
             );
           }
           // Finished exercises fold away to keep the one you're on in view; tap to open them again
+          // Focus mode: exercises still to come stay small until you reach them (or tap to open one early)
+          if (!complete && !isCurrent && !expanded.has(ex.id)) {
+            return (
+              <Pressable
+                key={ex.id}
+                onPress={() => toggleExpanded(ex.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${ex.name}, coming up. Tap to open.`}
+                style={[ui.row, { paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: 14, backgroundColor: colors.card }]}
+              >
+                <Text style={[ui.small, { width: 20 }]}>{idx + 1}</Text>
+                <Text style={[ui.body, { flex: 1 }]} numberOfLines={1}>
+                  {ex.name}
+                </Text>
+                <Text style={ui.small}>
+                  {done > 0 ? `${done}/` : ''}
+                  {ex.sets} × {ex.reps}
+                </Text>
+              </Pressable>
+            );
+          }
           if (complete && !expanded.has(ex.id)) {
             return (
               <Pressable
@@ -460,7 +574,7 @@ export default function SessionScreen({ route, navigation }: Props) {
                     </Pressable>
                     <Pill text="Now" color={colors.accent} />
                   </View>
-                ) : complete ? (
+                ) : complete || expanded.has(ex.id) ? (
                   <Pressable onPress={() => toggleExpanded(ex.id)} hitSlop={10} accessibilityRole="button">
                     <Text style={ui.small}>Hide</Text>
                   </Pressable>
@@ -550,6 +664,15 @@ export default function SessionScreen({ route, navigation }: Props) {
           <Button title="Finish & save workout" onPress={finish} />
         </View>
       </KeyboardAwareScrollView>
+    </View>
+  );
+}
+
+function SummaryTile({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={[ui.card, { flex: 1, alignItems: 'center', gap: 2 }]}>
+      <Text style={{ color: colors.text, fontSize: 26, fontWeight: '800' }}>{value}</Text>
+      <Text style={[ui.small, { textAlign: 'center' }]}>{label}</Text>
     </View>
   );
 }

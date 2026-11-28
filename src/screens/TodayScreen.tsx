@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
@@ -5,14 +6,13 @@ import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brand } from '../components/Brand';
 import { KeyboardAwareScrollView } from '../components/KeyboardAware';
-import { LogRow } from '../components/LogRow';
 import { Button, Pill, Segmented } from '../components/ui';
 import { WeekPlan } from '../components/WeekPlan';
 import { EffectiveExercise, effectivePlan } from '../data/effective';
 import { planMisfits } from '../data/library';
 import { areaInfo, painLabel, painsOf, redFlagsFor } from '../data/pain';
 import { dayKind, SESSIONS, SessionId, walkToday } from '../data/plan';
-import { dailyStats, dayKey, encouragement, summary } from '../data/progress';
+import { dayKey, encouragement, summary } from '../data/progress';
 import { upcomingDays } from '../data/week';
 import { comebackOffer, startDateForWeek } from '../data/comeback';
 import { postureCheckDue, snoozeUntil } from '../data/postureCheck';
@@ -88,7 +88,6 @@ export default function TodayScreen() {
   const view = (l: AnyLog) => nav.navigate('LogDetail', { logId: l.id });
 
   const stats = summary(logs, today, userWeek);
-  const last7 = dailyStats(logs, 7);
 
   // Places rated 6 or more in the last 3 logs that asked about pain (strength days)
   const highPains = logs
@@ -140,14 +139,127 @@ export default function TodayScreen() {
   // Today's strength session if today is a strength day, otherwise the next one; the week alternates from there
   const days = startDate ? upcomingDays(today, startDate, kind === 'strength' ? (strengthId as 'A' | 'B') : next, userWeek) : [];
 
+  // Today's checklist, in the order to do it: posture first (the warm-up on strength days), then strength, then the walk
+  type Item = { key: string; icon: IconName; title: string; detail: string; log?: AnyLog; go: () => void };
+  const items: Item[] = [
+    {
+      key: 'posture',
+      icon: 'body-outline',
+      title: SESSIONS.posture.title,
+      detail: postureLog
+        ? 'Done'
+        : `About ${minutesFor('posture', length)} min${kind === 'strength' ? ' · your warm-up' : ''}`,
+      log: postureLog,
+      go: () => start('posture'),
+    },
+    ...(kind === 'strength'
+      ? [
+          {
+            key: 'strength',
+            icon: 'barbell-outline' as IconName,
+            title: SESSIONS[strengthId].title,
+            detail: strengthLog ? 'Done' : `About ${minutesFor(strengthId, length)} min${length === 'short' ? ' · short' : ''}`,
+            log: strengthLog,
+            go: () => start(strengthId),
+          },
+        ]
+      : []),
+    ...(kind !== 'rest'
+      ? [
+          {
+            key: 'walk',
+            icon: 'walk-outline' as IconName,
+            title: walk.title,
+            detail: cardioLog?.kind === 'cardio' ? `You did: ${cardioLog.type} · ${cardioLog.minutes} min` : walk.target,
+            log: cardioLog,
+            go: () => nav.navigate('Walk'),
+          },
+        ]
+      : []),
+  ];
+  const nextItem = items.find(i => !i.log);
+  const dayTitle = { strength: 'Strength day', walk: 'Walk day', longwalk: 'Long walk day', rest: 'Rest day' }[kind];
+
+  // One notice at a time, most important first, so warnings never pile up above the day's plan
+  const notice = painHigh ? 'pain' : comeback ? 'comeback' : misfits.length > 0 ? 'misfits' : checkDue != null ? 'check' : null;
+
   return (
     <SafeAreaView style={ui.screen} edges={['top']}>
       <KeyboardAwareScrollView contentContainerStyle={ui.content}>
-        <Brand />
-        <View>
-          <Text style={ui.small}>{today.toDateString()} · Program week {week}</Text>
-          <Text style={ui.h1}>Today</Text>
+        <View style={[ui.row, { justifyContent: 'space-between' }]}>
+          <Brand />
+          <Pressable
+            onPress={() => nav.navigate('Tabs', { screen: 'Progress' })}
+            accessibilityRole="button"
+            accessibilityLabel={`${stats.streak}-day streak. Open progress.`}
+            style={[ui.row, { gap: 4, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.card }]}
+          >
+            <Ionicons name="flame" size={18} color={stats.streak > 0 ? colors.accent : colors.muted} />
+            <Text style={{ color: stats.streak > 0 ? colors.accent : colors.muted, fontWeight: '800', fontSize: 16 }}>{stats.streak}</Text>
+          </Pressable>
         </View>
+        <View style={{ gap: 2 }}>
+          <Text style={ui.small}>
+            {today.toDateString()} · Program week {week}
+          </Text>
+          <Text style={ui.muted}>{encouragement(stats)}</Text>
+        </View>
+
+        {notice === 'pain' && (
+          <View style={[ui.card, { borderColor: colors.warn }]}>
+            <Text style={[ui.h3, { color: colors.warn }]}>
+              Pain has been high recently: {highPains.map(p => painLabel(p).toLowerCase()).join(', ')}
+            </Text>
+            <Text style={ui.muted}>
+              {highSpine ? 'Keep today gentle: posture routine items 1, 6, 7, 8 and 9 plus a walk. ' : ''}
+              {highJoints.length
+                ? `Go easy on what loads the ${highJoints.map(p => painLabel(p).toLowerCase()).join(' and ')}: ` +
+                  `${[...new Set(highJoints.map(p => areaInfo(p.area).loads))].join('; ')}. `
+                : ''}
+              {redFlagsFor(highPains)}
+            </Text>
+          </View>
+        )}
+
+        {notice === 'comeback' && comeback && (
+          <View style={ui.card}>
+            <Text style={ui.h2}>Welcome back</Text>
+            <Text style={ui.muted}>
+              {comeback.neverStarted
+                ? `You set up omaFIT ${away} ago. The plan has moved on to week ${comeback.weekNow} without you. `
+                : `Your last workout was ${away} ago. The plan has moved on to week ${comeback.weekNow}. `}
+              Start at week {comeback.resumeWeek} instead, so the walks and runs match what your body is used to.
+            </Text>
+            {!comeback.neverStarted && (
+              <Text style={ui.small}>Go a little lighter on weights in your first strength session back.</Text>
+            )}
+            <Button title={`Start at week ${comeback.resumeWeek}`} onPress={() => answerComeback(true)} />
+            <Button title={`Keep week ${comeback.weekNow}`} kind="secondary" onPress={() => answerComeback(false)} />
+          </View>
+        )}
+
+        {notice === 'misfits' && (
+          <Pressable onPress={() => nav.navigate('PlanBuilder')} style={[ui.card, { borderColor: colors.warn }]}>
+            <Text style={[ui.h3, { color: colors.warn }]}>Your plan needs equipment you don't have</Text>
+            <Text style={ui.muted}>
+              {misfits.length === 1 ? '1 exercise' : `${misfits.length} exercises`} (e.g. {misfits[0]}) can't be done with
+              your equipment. Build my plan swaps them for ones you can do.
+            </Text>
+            <Text style={{ color: colors.accent, fontWeight: '700' }}>Build my plan →</Text>
+          </Pressable>
+        )}
+
+        {notice === 'check' && checkDue != null && (
+          <View style={ui.card}>
+            <Text style={ui.h2}>Time for a posture check</Text>
+            <Text style={ui.muted}>
+              Your last one was {Math.floor(checkDue / 7)} weeks ago. New photos show what has changed since. They go
+              only to your AI provider, and omaFIT doesn't keep them.
+            </Text>
+            <Button title="Check my posture" onPress={() => nav.navigate('PlanBuilder', { checkIn: true })} />
+            <Button title="Not now" kind="secondary" onPress={snoozeCheck} />
+          </View>
+        )}
 
         {open && (
           <Pressable
@@ -166,161 +278,86 @@ export default function TodayScreen() {
           </Pressable>
         )}
 
-        {comeback && (
-          <View style={[ui.card, { borderColor: colors.accent, gap: space.sm }]}>
-            <Text style={ui.h2}>Welcome back</Text>
-            <Text style={ui.muted}>
-              {comeback.neverStarted
-                ? `You set up omaFIT ${away} ago. The plan has moved on to week ${comeback.weekNow} without you. `
-                : `Your last workout was ${away} ago. The plan has moved on to week ${comeback.weekNow}. `}
-              Start at week {comeback.resumeWeek} instead, so the walks and runs match what your body is used to.
-            </Text>
-            {!comeback.neverStarted && (
-              <Text style={ui.small}>Go a little lighter on weights in your first strength session back.</Text>
-            )}
-            <Button title={`Start at week ${comeback.resumeWeek}`} onPress={() => answerComeback(true)} />
-            <Button title={`Keep week ${comeback.weekNow}`} kind="secondary" onPress={() => answerComeback(false)} />
-          </View>
-        )}
-
-        {checkDue != null && !comeback && (
-          <View style={[ui.card, { gap: space.sm }]}>
-            <Text style={ui.h2}>Time for a posture check</Text>
-            <Text style={ui.muted}>
-              Your last one was {Math.floor(checkDue / 7)} weeks ago. New photos show what has changed since. They go
-              only to your AI provider, and omaFIT doesn't keep them.
-            </Text>
-            <Button title="Check my posture" onPress={() => nav.navigate('PlanBuilder', { checkIn: true })} />
-            <Button title="Not now" kind="secondary" onPress={snoozeCheck} />
-          </View>
-        )}
-
-        <Pressable onPress={() => nav.navigate('Tabs', { screen: 'Progress' })} style={ui.card}>
+        <View style={[ui.card, { gap: space.md }, !open && { borderColor: colors.accent, borderWidth: 2 }]}>
           <View style={[ui.row, { justifyContent: 'space-between' }]}>
-            <Text style={ui.h2}>
-              <Text style={{ color: stats.streak > 0 ? colors.accent : colors.text }}>{stats.streak}</Text>-day streak
-            </Text>
-            <View style={ui.row}>
-              {last7.map(d => (
-                <View
-                  key={d.key}
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 5,
-                    // A planned rest day shows dimmer: it keeps the streak
-                    backgroundColor: d.active ? colors.accent : dayKind(d.date, userWeek) === 'rest' ? `${colors.accent}66` : colors.cardAlt,
-                    borderWidth: d.key === last7[6].key ? 1 : 0,
-                    borderColor: colors.accent,
-                  }}
+            <Text style={ui.h2}>Today</Text>
+            <Text style={ui.small}>{dayTitle}</Text>
+          </View>
+
+          {canShorten && !open && (
+            <View style={{ gap: space.xs }}>
+              <Segmented
+                options={[
+                  { key: 'full', label: `Full · ~${dayMinutes('full')} min` },
+                  { key: 'short', label: `Short · ~${dayMinutes('short')} min` },
+                ]}
+                value={length}
+                onChange={chooseLength}
+              />
+              {length === 'short' && <Text style={ui.small}>Short keeps the key exercises with fewer sets.</Text>}
+            </View>
+          )}
+
+          {items.map((item, i) => (
+            <Pressable
+              key={item.key}
+              onPress={() => (item.log ? view(item.log) : item.go())}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title}, ${item.detail}. ${item.log ? 'Tap to see what you did.' : 'Tap to start.'}`}
+              style={[ui.row, { gap: space.md }]}
+            >
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: item.log ? colors.good : item === nextItem ? colors.accentSoft : colors.cardAlt,
+                }}
+              >
+                <Ionicons
+                  name={item.log ? 'checkmark' : item.icon}
+                  size={20}
+                  color={item.log ? '#fff' : item === nextItem ? colors.accent : colors.muted}
                 />
-              ))}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[ui.body, { fontWeight: '700' }, !!item.log && { color: colors.muted }]}>
+                  {i + 1}. {item.title}
+                </Text>
+                <Text style={ui.small}>{item.detail}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
+          ))}
+
+          {kind === 'rest' && (
+            <View style={[ui.row, { gap: space.md }]}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardAlt }}>
+                <Ionicons name="moon-outline" size={20} color={colors.muted} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[ui.body, { fontWeight: '700' }]}>Rest</Text>
+                <Text style={ui.small}>Recovery is part of the plan. Strength days need it.</Text>
+              </View>
             </View>
-          </View>
-          <Text style={ui.muted}>{encouragement(stats)}</Text>
-          <Text style={{ color: colors.accent, fontWeight: '700' }}>See progress →</Text>
-        </Pressable>
+          )}
 
-        {misfits.length > 0 && (
-          <Pressable onPress={() => nav.navigate('PlanBuilder')} style={[ui.card, { borderColor: colors.warn }]}>
-            <Text style={[ui.h3, { color: colors.warn }]}>Your plan needs equipment you don't have</Text>
-            <Text style={ui.muted}>
-              {misfits.length === 1 ? '1 exercise' : `${misfits.length} exercises`} (e.g. {misfits[0]}) can't be done with
-              your equipment. Build my plan swaps them for ones you can do.
-            </Text>
-            <Text style={{ color: colors.accent, fontWeight: '700' }}>Build my plan →</Text>
-          </Pressable>
-        )}
+          {kind !== 'rest' && !cardioLog && (
+            <Text style={ui.small}>Walk at talking pace. Can't walk or run? Skipping counts too.</Text>
+          )}
 
-        {painHigh && (
-          <View style={[ui.card, { borderColor: colors.warn }]}>
-            <Text style={[ui.h3, { color: colors.warn }]}>
-              Pain has been high recently: {highPains.map(p => painLabel(p).toLowerCase()).join(', ')}
-            </Text>
-            <Text style={ui.muted}>
-              {highSpine ? 'Keep today gentle: posture routine items 1, 6, 7, 8 and 9 plus a walk. ' : ''}
-              {highJoints.length
-                ? `Go easy on what loads the ${highJoints.map(p => painLabel(p).toLowerCase()).join(' and ')}: ` +
-                  `${[...new Set(highJoints.map(p => areaInfo(p.area).loads))].join('; ')}. `
-                : ''}
-              {redFlagsFor(highPains)}
-            </Text>
-          </View>
-        )}
-
-        {canShorten && !open && (
-          <View style={{ gap: space.xs }}>
-            <Text style={ui.small}>How much time do you have today?</Text>
-            <Segmented
-              options={[
-                { key: 'full', label: `Full · ~${dayMinutes('full')} min` },
-                { key: 'short', label: `Short · ~${dayMinutes('short')} min` },
-              ]}
-              value={length}
-              onChange={chooseLength}
-            />
-            {length === 'short' && <Text style={ui.small}>Short keeps the key exercises with fewer sets.</Text>}
-          </View>
-        )}
-
-        <Pressable onPress={() => (postureLog ? view(postureLog) : start('posture'))} style={ui.card}>
-          <View style={[ui.row, { justifyContent: 'space-between' }]}>
-            <Text style={ui.h2}>{SESSIONS.posture.title}</Text>
-            {postureLog && <Pill text="Done" color={colors.good} />}
-          </View>
-          <Text style={ui.muted}>{postureLog
-              ? SESSIONS.posture.subtitle
-              : `Daily, about ${minutesFor('posture', length)} min${length === 'short' ? ' (short)' : ''}. Also your warm-up on strength days.`}</Text>
-          <CardLink done={!!postureLog} />
-        </Pressable>
-
-        {kind === 'strength' && (
-          <Pressable
-            onPress={() => (strengthLog ? view(strengthLog) : start(strengthId))}
-            style={[ui.card, !strengthLog && { borderColor: colors.accent }]}
-          >
-            <View style={[ui.row, { justifyContent: 'space-between' }]}>
-              <Text style={ui.h2}>{SESSIONS[strengthId].title}</Text>
-              {strengthLog ? <Pill text="Done" color={colors.good} /> : <Pill text="Today" />}
-            </View>
-            <Text style={ui.muted}>{SESSIONS[strengthId].subtitle}</Text>
-            {!strengthLog && (
-              <Text style={ui.small}>
-                About {minutesFor(strengthId, length)} min{length === 'short' ? ', short version' : ''}
-              </Text>
-            )}
-            {!strengthLog && (
-              <Text style={ui.muted}>Do the posture routine first as your warm-up. Add a 20 min walk later.</Text>
-            )}
-            <CardLink done={!!strengthLog} />
-          </Pressable>
-        )}
-
-        {(kind === 'walk' || kind === 'longwalk' || kind === 'strength') && (
-          <Pressable
-            onPress={() => (cardioLog ? view(cardioLog) : nav.navigate('Walk'))}
-            style={[ui.card, kind !== 'strength' && !cardioLog && { borderColor: colors.accent }]}
-          >
-            <View style={[ui.row, { justifyContent: 'space-between' }]}>
-              <Text style={ui.h2}>{walk.title}</Text>
-              {cardioLog ? <Pill text="Done" color={colors.good} /> : kind !== 'strength' && <Pill text="Today" />}
-            </View>
-            <Text style={ui.muted}>
-              {cardioLog?.kind === 'cardio' ? `You did: ${cardioLog.type} · ${cardioLog.minutes} min` : walk.target}
-            </Text>
-            {!cardioLog && (
-              <Text style={ui.small}>Weeks {walk.weeks} of the plan. Talking pace. Running shoes, not slides. Can't walk or run? Skipping counts too.</Text>
-            )}
-            <CardLink done={!!cardioLog} />
-          </Pressable>
-        )}
-
-        {kind === 'rest' && (
-          <View style={ui.card}>
-            <Text style={ui.h2}>Rest day</Text>
-            <Text style={ui.muted}>Just the posture routine. Strength sessions need the recovery.</Text>
-          </View>
-        )}
+          {!open &&
+            (nextItem ? (
+              <Button title={`Start ${nextItem.title}`} onPress={nextItem.go} />
+            ) : (
+              <View style={[ui.row, { justifyContent: 'center' }]}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.good} />
+                <Text style={[ui.body, { color: colors.good, fontWeight: '700' }]}>All done for today</Text>
+              </View>
+            ))}
+        </View>
 
         {days.length > 0 && (
           <WeekPlan
@@ -330,35 +367,20 @@ export default function TodayScreen() {
           />
         )}
 
-        <View style={ui.card}>
-          <Text style={ui.h3}>Start a new session</Text>
-          <View style={[ui.row, { flexWrap: 'wrap' }]}>
-            {(['A', 'B'] as const).map(id => (
-              <Button key={id} title={SESSIONS[id].title} kind="secondary" onPress={() => start(id)} />
-            ))}
-            <Button title="Walk / run" kind="secondary" onPress={() => nav.navigate('Walk')} />
-          </View>
-        </View>
-
-        <View style={[ui.row, { justifyContent: 'space-between', marginTop: space.md }]}>
-          <Text style={ui.h2}>Recent</Text>
-          {logs.length > 3 && (
-            <Text onPress={() => nav.navigate('Tabs', { screen: 'Progress' })} style={{ color: colors.accent, fontWeight: '700' }}>
-              See all →
+        <View style={[ui.row, { flexWrap: 'wrap', justifyContent: 'center', gap: space.md }]}>
+          <Text style={ui.small}>Other workouts:</Text>
+          {(['A', 'B'] as const).map(id => (
+            <Text key={id} onPress={() => start(id)} accessibilityRole="button" style={{ color: colors.accent, fontWeight: '700' }}>
+              {SESSIONS[id].title}
             </Text>
-          )}
+          ))}
+          <Text onPress={() => nav.navigate('Walk')} accessibilityRole="button" style={{ color: colors.accent, fontWeight: '700' }}>
+            Walk / run
+          </Text>
         </View>
-        {logs.length === 0 && <Text style={ui.muted}>Nothing logged yet.</Text>}
-        {logs.slice(0, 3).map(l => (
-          <LogRow key={l.id} log={l} onDeleted={load} />
-        ))}
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
-
-/** "Start →" for something to do today; "View →" once it's done (opens a read-only summary). */
-function CardLink({ done }: { done: boolean }) {
-  return <Text style={{ color: done ? colors.muted : colors.accent, fontWeight: '700' }}>{done ? 'View →' : 'Start →'}</Text>;
-}
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
